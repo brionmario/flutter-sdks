@@ -16,9 +16,10 @@
  * under the License.
  */
 
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:thunderid_flutter/thunderid_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,850 +30,1052 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _navIndex = 0;
+  String _screen = 'home';
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_screen) {
+      case 'profile':
+        return _ProfileScreen(onBack: () => setState(() => _screen = 'home'));
+      case 'token':
+        return _TokenScreen(onBack: () => setState(() => _screen = 'home'));
+      default:
+        return _HomeTabScreen(
+          onNavigate: (screen) => setState(() => _screen = screen),
+        );
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Design constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _kBlue = Color(0xFF3688FF);
+const _kGreen = Color(0xFF2FBD6B);
+const _kRed = Color(0xFFD95757);
+const _kMuted = Color(0xFF5A7085);
+const _kTextDark = Color(0xFF05213F);
+const _kCodeBg = Color(0xFF0b1120);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Home tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Converts a raw claim value (typically a JSON number bridged from the
+/// platform channel) into whole seconds-since-epoch, or `null` if the claim
+/// is absent or not numeric.
+int? _epochSecondsFromClaim(dynamic value) {
+  if (value is num) return value.toInt();
+  return null;
+}
+
+/// Formats a unix-seconds timestamp as a local `h:mm AM/PM` time string.
+String _formatLocalTime(int? epochSeconds) {
+  if (epochSeconds == null) return '—';
+  final dt = DateTime.fromMillisecondsSinceEpoch(epochSeconds * 1000);
+  var hour12 = dt.hour % 12;
+  if (hour12 == 0) hour12 = 12;
+  final minute = dt.minute.toString().padLeft(2, '0');
+  final period = dt.hour >= 12 ? 'PM' : 'AM';
+  return '$hour12:$minute $period';
+}
+
+/// Formats the number of whole seconds remaining until session expiry.
+/// Returns `—` once the claim is unavailable or the session has expired.
+String _formatCountdown(int? secondsLeft) {
+  if (secondsLeft == null || secondsLeft <= 0) return '—';
+  if (secondsLeft < 3600) {
+    final minutes = secondsLeft ~/ 60;
+    final seconds = secondsLeft % 60;
+    return '${minutes}m ${seconds}s';
+  }
+  final hours = secondsLeft ~/ 3600;
+  final minutes = (secondsLeft % 3600) ~/ 60;
+  return '${hours}h ${minutes}m';
+}
+
+/// Returns a time-of-day-aware greeting, e.g. "Good afternoon, Alex.".
+String _greeting(String name) {
+  final hour = DateTime.now().hour;
+  final String timeOfDay;
+  if (hour < 12) {
+    timeOfDay = 'morning';
+  } else if (hour < 17) {
+    timeOfDay = 'afternoon';
+  } else {
+    timeOfDay = 'evening';
+  }
+  return 'Good $timeOfDay, $name.';
+}
+
+class _HomeTabScreen extends StatefulWidget {
+  final void Function(String) onNavigate;
+  const _HomeTabScreen({required this.onNavigate});
+
+  @override
+  State<_HomeTabScreen> createState() => _HomeTabScreenState();
+}
+
+class _HomeTabScreenState extends State<_HomeTabScreen> {
+  Timer? _ticker;
+  int _nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
   @override
   void initState() {
     super.initState();
-    if (kDebugMode) {
-      Future.microtask(_logToken);
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  static String _initials(String? displayName) {
+    if (displayName == null || displayName.isEmpty) return '?';
+    final parts = displayName.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return displayName[0].toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thunder = ThunderIDProvider.of(context);
+    final user = thunder.user;
+    final displayName = user?.displayName;
+    final greetingName =
+        (displayName == null || displayName.isEmpty) ? 'Guest' : displayName;
+    final email = user?.email ?? '';
+    final initials = _initials(displayName);
+
+    final claims = user?.claims;
+    final authTime = _epochSecondsFromClaim(claims?['auth_time']);
+    final exp = _epochSecondsFromClaim(claims?['exp']);
+    final secondsLeft = exp != null ? exp - _nowSeconds : null;
+    final organisation = thunder.widget.config.organizationHandle ?? 'Default';
+
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding:
+            const EdgeInsets.only(top: 72, left: 20, right: 20, bottom: 48),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── User identity ──────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: const BoxDecoration(
+                    color: _kBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _greeting(greetingName),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _kTextDark,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        email,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: _kMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: _kGreen,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Session active',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _kGreen,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // ── Stats row ──────────────────────────────────────────────────
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  _StatCell(
+                      label: 'Signed in at', value: _formatLocalTime(authTime)),
+                  const VerticalDivider(width: 32),
+                  _StatCell(
+                      label: 'Session expires in',
+                      value: _formatCountdown(secondsLeft)),
+                  const VerticalDivider(width: 32),
+                  _StatCell(label: 'Organisation', value: organisation),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── What's next ────────────────────────────────────────────────
+            Text(
+              'WHAT\'S NEXT',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.0,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            const _StepRow(
+              number: '01',
+              title: 'Secure your API',
+              subtitle: 'Add token validation to your backend.',
+            ),
+            const _StepRow(
+              number: '02',
+              title: 'Add social login',
+              subtitle: 'GitHub, Google, and OIDC providers.',
+            ),
+            const _StepRow(
+              number: '03',
+              title: 'Enable MFA',
+              subtitle: 'TOTP and passkey support.',
+            ),
+            const _StepRow(
+              number: '04',
+              title: 'Explore the SDK',
+              subtitle: 'API reference and guides.',
+            ),
+
+            const SizedBox(height: 8),
+
+            // ── Action list ────────────────────────────────────────────────
+            const Divider(),
+            _ActionRow(
+              icon: Icons.person_outline,
+              label: 'My profile',
+              onTap: () => widget.onNavigate('profile'),
+            ),
+            const Divider(),
+            _ActionRow(
+              icon: Icons.key_outlined,
+              label: 'Token debug',
+              onTap: () => widget.onNavigate('token'),
+            ),
+            const Divider(),
+            _ActionRow(
+              icon: Icons.settings_outlined,
+              label: 'Settings',
+              onTap: () {},
+            ),
+            const Divider(),
+
+            // ── Sign out ───────────────────────────────────────────────────
+            BaseSignOutButton(
+              builder: (ctx, isLoading) => InkWell(
+                onTap: null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Row(
+                    children: [
+                      isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _kRed,
+                              ),
+                            )
+                          : const Icon(Icons.logout, color: _kRed, size: 20),
+                      const SizedBox(width: 14),
+                      const Text(
+                        'Sign out',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _kRed,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const Divider(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  final String label;
+  final String value;
+  const _StatCell({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _kTextDark,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: _kMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  final String number;
+  final String title;
+  final String subtitle;
+  const _StepRow({
+    required this.number,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Text(
+                number,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: _kBlue,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: _kTextDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 13, color: _kMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: _kMuted, size: 20),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: _kMuted),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: _kTextDark,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: _kMuted, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Profile screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProfileScreen extends StatelessWidget {
+  final VoidCallback onBack;
+  const _ProfileScreen({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    final thunder = ThunderIDProvider.of(context);
+    final user = thunder.user;
+    final displayName = user?.displayName ?? 'Guest';
+    final email = user?.email ?? '';
+    final userId = user?.sub ?? '—';
+    final username = user?.username ?? '—';
+
+    final initials = displayName.isNotEmpty
+        ? displayName
+            .trim()
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((p) => p[0])
+            .join()
+            .toUpperCase()
+        : '?';
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Back button ──────────────────────────────────────────────
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: onBack,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chevron_left, color: _kBlue, size: 22),
+                    Text(
+                      'Home',
+                      style: TextStyle(
+                        color: _kBlue,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Avatar + name + email ────────────────────────────────────
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: _kBlue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      displayName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _kTextDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      style: const TextStyle(fontSize: 13, color: _kMuted),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _kGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Email verified',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _kGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Account details section ──────────────────────────────────
+              const _SectionHeader(label: 'ACCOUNT DETAILS'),
+              const SizedBox(height: 8),
+              _InfoRow(label: 'USER ID', value: userId, monospace: true),
+              const Divider(),
+              _InfoRow(label: 'USERNAME', value: username),
+
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.0,
+        color: _kMuted,
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool monospace;
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.monospace = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _kMuted,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: monospace ? 12 : 14,
+                color: _kTextDark,
+                fontFamily: monospace ? 'monospace' : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Token debug screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TokenScreen extends StatefulWidget {
+  final VoidCallback onBack;
+  const _TokenScreen({required this.onBack});
+
+  @override
+  State<_TokenScreen> createState() => _TokenScreenState();
+}
+
+class _TokenScreenState extends State<_TokenScreen> {
+  String? _token;
+  String _payload = '{}';
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loading) {
+      _loadToken();
     }
   }
 
-  Future<void> _logToken() async {
+  Future<void> _loadToken() async {
     final thunder = ThunderIDProvider.of(context);
     try {
-      final token = await thunder.client.getAccessToken();
-      debugPrint('[HomeScreen] access token: $token');
-      debugPrint('[HomeScreen] token payload: ${_decodeJwtPayload(token)}');
+      final tok = await thunder.client.getAccessToken();
+      if (!mounted) return;
+      setState(() {
+        _token = tok;
+        _payload = _decodePayload(tok);
+        _loading = false;
+      });
     } catch (e) {
-      debugPrint('[HomeScreen] could not get access token: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
-  String _decodeJwtPayload(String token) {
+  String _decodePayload(String token) {
     try {
       final parts = token.split('.');
-      if (parts.length != 3) return '(not a JWT)';
+      if (parts.length != 3) return '{}';
       final padded = parts[1].padRight((parts[1].length + 3) ~/ 4 * 4, '=');
       return utf8.decode(base64Url.decode(padded));
-    } catch (e) {
-      return '(decode error: $e)';
+    } catch (_) {
+      return '{}';
+    }
+  }
+
+  Widget _buildExpiryBadge() {
+    try {
+      final map = jsonDecode(_payload) as Map<String, dynamic>;
+      final exp = map['exp'];
+      if (exp == null) return const SizedBox.shrink();
+      final expSecs = (exp as num).toInt();
+      final nowSecs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final diffSecs = expSecs - nowSecs;
+      if (diffSecs <= 0) {
+        return const _Badge(label: 'Expired', color: _kRed);
+      }
+      final mins = (diffSecs / 60).ceil();
+      return _Badge(label: '$mins min', color: _kGreen);
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+
+  String _issuer() {
+    try {
+      final map = jsonDecode(_payload) as Map<String, dynamic>;
+      return (map['iss'] as String?) ?? '—';
+    } catch (_) {
+      return '—';
+    }
+  }
+
+  String _scopes() {
+    try {
+      final map = jsonDecode(_payload) as Map<String, dynamic>;
+      final scp = map['scp'] ?? map['scope'];
+      if (scp == null) return '—';
+      if (scp is List) return scp.join(', ');
+      return scp.toString();
+    } catch (_) {
+      return '—';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _navIndex,
-        children: [
-          _ExploreTab(onProfileTap: () => setState(() => _navIndex = 4)),
-          const _PlaceholderTab(label: 'Saved', icon: Icons.favorite_outline),
-          const _PlaceholderTab(label: 'Trips', icon: Icons.card_travel_outlined),
-          const _PlaceholderTab(label: 'Inbox', icon: Icons.chat_bubble_outline),
-          const _ProfileTab(),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _navIndex,
-        onDestinationSelected: (i) => setState(() => _navIndex = i),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Explore',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_outline),
-            selectedIcon: Icon(Icons.favorite),
-            label: 'Saved',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.card_travel_outlined),
-            selectedIcon: Icon(Icons.card_travel),
-            label: 'Trips',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Inbox',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Explore tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ExploreTab extends StatefulWidget {
-  final VoidCallback onProfileTap;
-  const _ExploreTab({required this.onProfileTap});
-
-  @override
-  State<_ExploreTab> createState() => _ExploreTabState();
-}
-
-class _ExploreTabState extends State<_ExploreTab> {
-  int _categoryIndex = 0;
-  int _sortIndex = 0;
-
-  static const _categories = ['Stays', 'Experiences', 'Adventures', 'Luxe'];
-  static const _sorts = ['Popular', 'Near', 'Best Price'];
-  static const _categoryIcons = [
-    Icons.home_outlined,
-    Icons.tour_outlined,
-    Icons.terrain,
-    Icons.diamond_outlined,
-  ];
-
-  static const _listings = [
-    _Listing(
-      title: 'Cozy Mountain Retreat',
-      location: 'Aspen, Colorado',
-      price: 189,
-      rating: 4.92,
-      imageUrl: 'https://picsum.photos/seed/acme1/400/280',
-    ),
-    _Listing(
-      title: 'Beachfront Villa',
-      location: 'Malibu, California',
-      price: 342,
-      rating: 4.87,
-      imageUrl: 'https://picsum.photos/seed/acme2/400/280',
-    ),
-    _Listing(
-      title: 'City Centre Loft',
-      location: 'New York, NY',
-      price: 215,
-      rating: 4.78,
-      imageUrl: 'https://picsum.photos/seed/acme3/400/280',
-    ),
-    _Listing(
-      title: 'Lakeside Cabin',
-      location: 'Lake Tahoe, Nevada',
-      price: 156,
-      rating: 4.95,
-      imageUrl: 'https://picsum.photos/seed/acme4/400/280',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final thunder = ThunderIDProvider.of(context);
-    final user = thunder.user;
-    final firstName = (user?.claims?['given_name'] as String?)?.isNotEmpty == true
-        ? user!.claims!['given_name'] as String
-        : user?.displayName?.split(' ').first ?? 'there';
-    final cs = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          // ── Top bar ──────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
-              child: Row(
-                children: [
-                  Icon(Icons.home_filled, color: cs.primary, size: 26),
-                  const SizedBox(width: 6),
-                  Text(
-                    'ACME Booking',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: widget.onProfileTap,
-                    child: _UserAvatar(user: user, radius: 18),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Welcome heading ─────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Text(
-                'Where Would you\nLike to Stay, $firstName?',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ),
-          ),
-
-          // ── Search bar ──────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search destinations...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: cs.surfaceContainerHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ),
-          ),
-
-          // ── Category chips ──────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 0, 0),
-              child: SizedBox(
-                height: 84,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _categories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (ctx, i) {
-                    final selected = i == _categoryIndex;
-                    return GestureDetector(
-                      onTap: () => setState(() => _categoryIndex = i),
-                      child: Column(
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? cs.primary
-                                  : cs.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(
-                              _categoryIcons[i],
-                              color: selected ? cs.onPrimary : cs.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _categories[i],
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: selected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: selected ? cs.primary : cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-
-          // ── Sort tabs ───────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Row(
-                children: [
-                  ..._sorts.asMap().entries.map((e) {
-                    final selected = e.key == _sortIndex;
-                    return Padding(
-                      padding: EdgeInsets.only(
-                          right: e.key < _sorts.length - 1 ? 20 : 0),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _sortIndex = e.key),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              e.value,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: selected
-                                    ? cs.onSurface
-                                    : cs.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            if (selected)
-                              Container(
-                                height: 2,
-                                width: 28,
-                                decoration: BoxDecoration(
-                                  color: cs.primary,
-                                  borderRadius: BorderRadius.circular(1),
-                                ),
-                              )
-                            else
-                              const SizedBox(height: 2),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  const Spacer(),
-                  Text(
-                    'See More',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Listings grid ───────────────────────────────────────────────
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            sliver: SliverGrid.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.7,
-              children:
-                  _listings.map((l) => _ListingCard(listing: l)).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final thunder = ThunderIDProvider.of(context);
-    final user = thunder.user;
-    final cs = Theme.of(context).colorScheme;
-
-    final givenName = user?.claims?['given_name'] as String? ?? '';
-    final familyName = user?.claims?['family_name'] as String? ?? '';
-    final fullName = [givenName, familyName]
-        .where((s) => s.isNotEmpty)
-        .join(' ')
-        .trim();
-    final displayName =
-        fullName.isNotEmpty ? fullName : (user?.username ?? 'Guest');
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ────────────────────────────────────────────────────
-            Row(
-              children: [
-                Text(
-                  'Profile',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined),
-                  onPressed: () {},
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // ── Profile card ──────────────────────────────────────────────
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: cs.outlineVariant),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Back button ──────────────────────────────────────────────
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: widget.onBack,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Stack(
+                    Icon(Icons.chevron_left, color: _kBlue, size: 22),
+                    Text(
+                      'Home',
+                      style: TextStyle(
+                        color: _kBlue,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Title row ────────────────────────────────────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _UserAvatar(user: user, radius: 40),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: cs.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.verified,
-                              color: cs.onPrimary,
-                              size: 14,
-                            ),
+                        Text(
+                          'Token debug',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: _kTextDark,
                           ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Access token and claims',
+                          style: TextStyle(fontSize: 13, color: _kMuted),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayName,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Los Angeles, CA',
-                            style:
-                                TextStyle(color: cs.onSurfaceVariant),
-                          ),
-                        ],
+                  ),
+                  if (!_loading && _token != null) _buildExpiryBadge(),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              if (_loading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator(color: _kBlue),
+                  ),
+                )
+              else if (_error != null)
+                Text(
+                  'Error: $_error',
+                  style: const TextStyle(color: _kRed, fontSize: 13),
+                )
+              else ...[
+                // ── JWT token display ────────────────────────────────────
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _kCodeBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: _token != null
+                      ? _buildJwtRichText(_token!)
+                      : const SizedBox.shrink(),
+                ),
+
+                const SizedBox(height: 8),
+
+                // ── Copy button ──────────────────────────────────────────
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      if (_token != null) {
+                        await Clipboard.setData(ClipboardData(text: _token!));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Token copied to clipboard'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.copy, size: 14, color: _kMuted),
+                    label: const Text(
+                      'Copy',
+                      style: TextStyle(fontSize: 13, color: _kMuted),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── JWT Payload section ──────────────────────────────────
+                const Text(
+                  'JWT PAYLOAD',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                    color: _kMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _kCodeBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      _prettyJson(_payload),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: Color(0xFF79c0ff),
+                        height: 1.5,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Stats card ────────────────────────────────────────────────
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: cs.outlineVariant),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Row(
-                  children: [
-                    const _StatItem(value: '24', label: 'Trips'),
-                    _VerticalDivider(),
-                    const _StatItem(value: '22', label: 'Reviews'),
-                    _VerticalDivider(),
-                    const _StatItem(value: '2', label: 'Years on ACME'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Feature cards ─────────────────────────────────────────────
-            const Row(
-              children: [
-                Expanded(
-                  child: _FeatureCard(
-                    label: 'Past trips',
-                    imageUrl: 'https://picsum.photos/seed/trips/300/200',
-                    isNew: true,
                   ),
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _FeatureCard(
-                    label: 'Connections',
-                    imageUrl: 'https://picsum.photos/seed/connect/300/200',
-                    isNew: true,
+
+                const SizedBox(height: 20),
+
+                // ── Metadata rows ────────────────────────────────────────
+                const Text(
+                  'METADATA',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                    color: _kMuted,
                   ),
                 ),
+                const SizedBox(height: 8),
+                _MetaRow(label: 'Issuer', value: _issuer()),
+                const Divider(),
+                _MetaRow(label: 'Scopes', value: _scopes()),
+                const Divider(),
               ],
-            ),
-            const SizedBox(height: 24),
 
-            // ── Edit profile ──────────────────────────────────────────────
-            OutlinedButton.icon(
-              onPressed: () => _showEditProfile(context),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit Profile'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Sign out ──────────────────────────────────────────────────
-            BaseSignOutButton(
-              builder: (ctx, isLoading) => OutlinedButton.icon(
-                onPressed: null,
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.logout),
-                label: const Text('Sign Out'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditProfile(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        expand: false,
-        builder: (ctx, controller) => SingleChildScrollView(
-          controller: controller,
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-          child: UserProfile(
-            onSaved: () => Navigator.pop(ctx),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Placeholder tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PlaceholderTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  const _PlaceholderTab({required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 52, color: cs.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(label, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
-            ),
-          ],
+  Widget _buildJwtRichText(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) {
+      return Text(
+        token,
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11,
+          color: Colors.white70,
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _UserAvatar extends StatelessWidget {
-  final dynamic user;
-  final double radius;
-  const _UserAvatar({this.user, this.radius = 20});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final pictureUrl = (user?.profilePicture as String?)?.isNotEmpty == true
-        ? user!.profilePicture as String
-        : (user?.claims?['picture'] as String?)?.isNotEmpty == true
-            ? user!.claims!['picture'] as String
-            : null;
-    if (pictureUrl != null) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: NetworkImage(pictureUrl),
-        onBackgroundImageError: (_, __) {},
-        backgroundColor: cs.primaryContainer,
       );
     }
-    final displayName = user?.displayName as String?;
-    final email = user?.email as String?;
-    final initial = displayName?.isNotEmpty == true
-        ? displayName![0].toUpperCase()
-        : (email?.isNotEmpty == true ? email![0].toUpperCase() : '?');
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: cs.primaryContainer,
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: cs.onPrimaryContainer,
-          fontWeight: FontWeight.bold,
-          fontSize: radius * 0.9,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-  const _StatItem({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
+    return RichText(
+      text: TextSpan(
         children: [
-          Text(
-            value,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+          TextSpan(
+            text: parts[0],
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFFff7b72),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
+          const TextSpan(
+            text: '.',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFF8b949e),
+            ),
+          ),
+          TextSpan(
+            text: parts[1],
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFF79c0ff),
+            ),
+          ),
+          const TextSpan(
+            text: '.',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFF8b949e),
+            ),
+          ),
+          TextSpan(
+            text: parts[2],
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFF3fb950),
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _VerticalDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      width: 1,
-      color: Theme.of(context).colorScheme.outlineVariant,
-    );
+  String _prettyJson(String raw) {
+    try {
+      final obj = jsonDecode(raw);
+      const encoder = JsonEncoder.withIndent('  ');
+      return encoder.convert(obj);
+    } catch (_) {
+      return raw;
+    }
   }
 }
 
-class _FeatureCard extends StatelessWidget {
+class _Badge extends StatelessWidget {
   final String label;
-  final String imageUrl;
-  final bool isNew;
-  const _FeatureCard(
-      {required this.label, required this.imageUrl, this.isNew = false});
+  final Color color;
+  const _Badge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: cs.outlineVariant),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  Container(color: cs.surfaceContainerHighest),
-            ),
-            if (isNew)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: cs.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'NEW',
-                    style: TextStyle(
-                      color: cs.onPrimary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black54, Colors.transparent],
-                  ),
-                ),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: color,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Listing data & card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Listing {
-  final String title;
-  final String location;
-  final int price;
-  final double rating;
-  final String imageUrl;
-
-  const _Listing({
-    required this.title,
-    required this.location,
-    required this.price,
-    required this.rating,
-    required this.imageUrl,
-  });
-}
-
-class _ListingCard extends StatelessWidget {
-  final _Listing listing;
-  const _ListingCard({required this.listing});
+class _MetaRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _MetaRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  listing.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(color: cs.surfaceContainerHighest),
-                ),
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Icon(Icons.favorite_outline,
-                      color: Colors.white, size: 20),
-                ),
-              ],
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _kMuted,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        listing.location,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: cs.onSurfaceVariant),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(Icons.star, size: 11, color: cs.primary),
-                    const SizedBox(width: 2),
-                    Text(
-                      listing.rating.toStringAsFixed(2),
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  listing.title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '\$${listing.price}/night',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _kTextDark,
+              ),
             ),
           ),
         ],

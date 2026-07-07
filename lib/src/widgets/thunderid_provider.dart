@@ -19,11 +19,12 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import '../thunderid_client.dart';
-import '../models/thunderid_config.dart';
-import '../models/preferences.dart';
-import '../models/user.dart';
+
 import '../i18n/thunderid_i18n.dart';
+import '../models/preferences.dart';
+import '../models/thunderid_config.dart';
+import '../models/user.dart';
+import '../thunderid_client.dart';
 
 /// Provides a [ThunderIDClient] and reactive authentication state to the widget tree.
 ///

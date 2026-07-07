@@ -16,12 +16,11 @@
  * under the License.
  */
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:thunderid_flutter/src/thunderid_client.dart';
 import 'package:thunderid_flutter/src/models/thunderid_config.dart';
 import 'package:thunderid_flutter/src/models/thunderid_error.dart';
-import 'package:thunderid_flutter/src/channel/thunderid_channel.dart';
-import 'package:flutter/services.dart';
+import 'package:thunderid_flutter/src/thunderid_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -106,7 +105,7 @@ void main() {
     });
 
     test('IAMException toString includes code', () {
-      final e = IAMException(ThunderIDErrorCode.networkError, 'connection refused');
+      const e = IAMException(ThunderIDErrorCode.networkError, 'connection refused');
       expect(e.toString(), contains('NETWORK_ERROR'));
     });
   });

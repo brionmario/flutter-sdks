@@ -27,9 +27,9 @@ class QuickstartApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ACME Booking',
+      title: 'ThunderID Quickstart',
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFFFF5A5F),
+        colorSchemeSeed: const Color(0xFF3688FF),
         useMaterial3: true,
       ),
       home: const _RootScreen(),
@@ -52,7 +52,7 @@ class _RootScreen extends StatelessWidget {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 12),
-              Text('Starting ACME Booking\u2026'),
+              Text('Starting ThunderID…'),
             ],
           ),
         ),

@@ -32,7 +32,7 @@ class ProfileScreen extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: ThunderIDUserProfile(
+          child: UserProfile(
             onSaved: () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Profile saved')),
             ),

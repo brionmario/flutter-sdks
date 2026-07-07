@@ -7,7 +7,9 @@
 .buildlog/
 .history
 
-
+# Local ThunderID dev server certificate (machine-specific, see Flutter Quickstart docs)
+server.cert
+server.key
 
 # Flutter repo-specific
 /bin/cache/

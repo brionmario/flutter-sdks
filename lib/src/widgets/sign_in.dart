@@ -16,13 +16,14 @@
  * under the License.
  */
 
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'thunderid_provider.dart';
-import 'flow_form.dart';
+import 'package:flutter/material.dart';
+
 import '../models/flow_models.dart';
 import '../models/token_exchange_config.dart';
 import '../models/user.dart';
+import 'flow_form.dart';
+import 'thunderid_provider.dart';
 
 /// State exposed to [BaseThunderIDSignIn]'s builder.
 class ThunderIDSignInState {
@@ -108,7 +109,7 @@ class _BaseSignInState extends State<BaseSignIn> {
     try {
       final state = ThunderIDProvider.of(context);
       final response = await state.client.signIn(
-        payload: EmbeddedSignInPayload(actionId: 'init'),
+        payload: const EmbeddedSignInPayload(actionId: 'init'),
         request: EmbeddedFlowRequestConfig(applicationId: widget.applicationId),
       );
       if (kDebugMode) {
