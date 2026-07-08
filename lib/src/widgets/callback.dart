@@ -17,8 +17,9 @@
  */
 
 import 'package:flutter/widgets.dart';
-import 'thunderid_provider.dart';
+
 import '../models/user.dart';
+import 'thunderid_provider.dart';
 
 /// Handles the OAuth2 redirect callback URL (spec §8.4 Auth Flow).
 ///

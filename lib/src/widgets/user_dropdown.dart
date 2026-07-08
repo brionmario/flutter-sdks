@@ -17,8 +17,9 @@
  */
 
 import 'package:flutter/widgets.dart';
-import 'thunderid_provider.dart';
+
 import '../models/user.dart';
+import 'thunderid_provider.dart';
 
 /// Avatar chip that opens a menu with profile and sign-out actions (spec §8.4 Presentation).
 class UserDropdown extends StatelessWidget {

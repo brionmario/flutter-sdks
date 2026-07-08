@@ -17,15 +17,15 @@
  */
 
 import 'channel/thunderid_channel.dart';
-import 'models/thunderid_error.dart';
-import 'models/thunderid_config.dart';
-import 'models/user.dart';
-import 'models/user_profile.dart';
-import 'models/token_response.dart';
 import 'models/flow_models.dart';
 import 'models/sign_in_options.dart';
 import 'models/sign_out_options.dart';
+import 'models/thunderid_config.dart';
+import 'models/thunderid_error.dart';
 import 'models/token_exchange_config.dart';
+import 'models/token_response.dart';
+import 'models/user.dart';
+import 'models/user_profile.dart';
 
 /// Flutter SDK client — Core Lib layer, delegates all protocol operations to
 /// the native iOS and Android Platform SDKs via [ThunderIDChannel] (spec §7.1).

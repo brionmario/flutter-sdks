@@ -17,8 +17,10 @@
  */
 
 import 'package:flutter/widgets.dart';
-import 'thunderid_provider.dart';
+
+import '../i18n/thunderid_i18n.dart';
 import '../models/user.dart';
+import 'thunderid_provider.dart';
 
 /// Read-only display of the authenticated user's name and avatar (spec §8.4 Presentation).
 class UserObject extends StatelessWidget {
@@ -35,7 +37,7 @@ class UserObject extends StatelessWidget {
 
 class _DefaultUserLayout extends StatelessWidget {
   final User? user;
-  final dynamic i18n;
+  final ThunderIDI18n i18n;
 
   const _DefaultUserLayout({required this.user, required this.i18n});
 

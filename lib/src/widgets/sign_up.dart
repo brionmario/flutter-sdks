@@ -17,10 +17,11 @@
  */
 
 import 'package:flutter/widgets.dart';
-import 'thunderid_provider.dart';
-import 'flow_form.dart';
+
 import '../models/flow_models.dart';
 import '../models/token_exchange_config.dart';
+import 'flow_form.dart';
+import 'thunderid_provider.dart';
 
 /// Full registration form driving the REGISTRATION flow (spec §8.4 Presentation).
 class SignUp extends StatelessWidget {
@@ -49,13 +50,13 @@ class SignUp extends StatelessWidget {
   }
 }
 
-class _FlowState {
+class ThunderIDSignUpState {
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
   final String? error;
   final Future<void> Function(String actionId, Map<String, String> inputs) submit;
 
-  const _FlowState({
+  const ThunderIDSignUpState({
     required this.currentStep,
     required this.isLoading,
     required this.error,
@@ -68,7 +69,7 @@ class BaseSignUp extends StatefulWidget {
   final String applicationId;
   final VoidCallback? onSuccess;
   final VoidCallback? onError;
-  final Widget Function(BuildContext context, _FlowState state) builder;
+  final Widget Function(BuildContext context, ThunderIDSignUpState state) builder;
 
   const BaseSignUp({
     super.key,
@@ -98,7 +99,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
     try {
       final state = ThunderIDProvider.of(context);
       final response = await state.client.signUp(
-        payload: EmbeddedSignInPayload(actionId: 'init'),
+        payload: const EmbeddedSignInPayload(actionId: 'init'),
         request: EmbeddedFlowRequestConfig(
           applicationId: widget.applicationId,
           flowType: FlowType.registration,
@@ -165,7 +166,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
   @override
   Widget build(BuildContext context) => widget.builder(
         context,
-        _FlowState(
+        ThunderIDSignUpState(
           currentStep: _currentStep,
           isLoading: _isLoading,
           error: _error,

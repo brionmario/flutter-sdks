@@ -17,9 +17,11 @@
  */
 
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'thunderid_provider.dart';
+
 import '../models/user_profile.dart' as model;
+import 'thunderid_provider.dart';
 
 /// Read-only profile view built from the decoded access token.
 class UserProfile extends StatelessWidget {
@@ -140,7 +142,9 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
 
   @override
   void dispose() {
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -164,7 +168,7 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
       final profile = model.UserProfile(id: payload['sub'] as String? ?? '', claims: profileClaims);
       for (final entry in profileClaims.entries) {
         _controllers.putIfAbsent(
-            entry.key, () => TextEditingController(text: entry.value?.toString() ?? ''));
+            entry.key, () => TextEditingController(text: entry.value?.toString() ?? ''),);
       }
       if (mounted) setState(() => _profile = profile);
     } catch (e) {

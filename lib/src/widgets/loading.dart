@@ -48,7 +48,7 @@ class _DefaultSpinner extends StatelessWidget {
 // Stub — avoids a Material/Cupertino import at this layer.
 // Replace with CircularProgressIndicator when using with Flutter Material.
 class CircularProgressIndicatorStub extends StatelessWidget {
-  const CircularProgressIndicatorStub();
+  const CircularProgressIndicatorStub({super.key});
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();

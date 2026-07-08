@@ -72,19 +72,19 @@ lib/
     flow_template_resolver.dart Embedded-flow URL builder
     widgets/
       thunderid_provider.dart   State provider (InheritedWidget root)
-      thunderid_sign_in_button.dart   SignInButton / BaseSignInButton
-      thunderid_sign_up_button.dart   SignUpButton / BaseSignUpButton
-      thunderid_sign_out_button.dart  SignOutButton / BaseSignOutButton
-      thunderid_sign_in.dart    Embedded sign-in form
-      thunderid_sign_up.dart    Embedded sign-up form
-      thunderid_signed_in.dart  Guard: renders child only when authenticated
-      thunderid_signed_out.dart Guard: inverse of SignedIn
-      thunderid_loading.dart    Guard: renders while SDK is loading
-      thunderid_user.dart       User info display
-      thunderid_user_dropdown.dart  User dropdown menu
-      thunderid_user_profile.dart   Full profile view
-      thunderid_callback.dart   OAuth2 redirect handler
-      thunderid_language_switcher.dart  Locale selector
+      sign_in_button.dart       SignInButton / BaseSignInButton
+      sign_up_button.dart       SignUpButton / BaseSignUpButton
+      sign_out_button.dart      SignOutButton / BaseSignOutButton
+      sign_in.dart              Embedded sign-in form
+      sign_up.dart              Embedded sign-up form
+      signed_in.dart            Guard: renders child only when authenticated
+      signed_out.dart           Guard: inverse of SignedIn
+      loading.dart              Guard: renders while SDK is loading
+      user_object.dart          User info display
+      user_dropdown.dart        User dropdown menu
+      user_profile.dart         Full profile view
+      callback.dart             OAuth2 redirect handler
+      language_switcher.dart    Locale selector
       flow_form.dart            Reusable form wrapper for flow steps
 android/                        Kotlin method channel handler (JVM 17, minSdk 26)
 ios/Classes/                    Swift method channel handler (iOS 16+)

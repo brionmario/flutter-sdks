@@ -17,8 +17,9 @@
  */
 
 import 'package:flutter/material.dart';
-import '../models/flow_models.dart';
+
 import '../flow_template_resolver.dart';
+import '../models/flow_models.dart';
 import 'thunderid_provider.dart';
 
 /// Internal widget used by [ThunderIDSignIn] and [ThunderIDSignUp] to render a
@@ -60,7 +61,9 @@ class _FlowFormState extends State<FlowForm> {
 
   @override
   void dispose() {
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -106,7 +109,7 @@ class _FlowFormState extends State<FlowForm> {
                 context,
                 {'ref': _inputRef(i), 'label': '', 'type': i['type']},
                 _str(i['type']),
-              )),
+              ),),
           if (actions.isNotEmpty)
             ...actions.map((a) => _renderAction(context, a, actions))
           else
@@ -121,7 +124,7 @@ class _FlowFormState extends State<FlowForm> {
           Text(
             widget.error!,
             style: TextStyle(
-                color: Theme.of(context).colorScheme.error, fontSize: 13),
+                color: Theme.of(context).colorScheme.error, fontSize: 13,),
           ),
         ],
       ],
@@ -283,7 +286,7 @@ class _FlowFormState extends State<FlowForm> {
   }
 
   String _findActionId(
-      String metaActionId, List<Map<String, dynamic>> actions) {
+      String metaActionId, List<Map<String, dynamic>> actions,) {
     if (actions.isEmpty) return 'submit';
     final byRef = actions.firstWhere(
       (a) => _str(a['ref']) == metaActionId,
@@ -304,7 +307,7 @@ class _FlowFormState extends State<FlowForm> {
 
   String _actionSubmitId(Map<String, dynamic> a) => _str(a['ref'],
       fallback: _str(a['id'],
-          fallback: _str(a['nextNode'], fallback: 'submit')));
+          fallback: _str(a['nextNode'], fallback: 'submit'),),);
 
   int? _actionIndex(String id) {
     if (!id.startsWith('action_')) return null;
@@ -359,11 +362,11 @@ class _FlowFormState extends State<FlowForm> {
 
   String _fieldRef(Map<String, dynamic> comp) => _str(comp['ref'],
       fallback: _str(comp['identifier'],
-          fallback: _str(comp['name'], fallback: _str(comp['id']))));
+          fallback: _str(comp['name'], fallback: _str(comp['id'])),),);
 
   String _inputRef(Map<String, dynamic> input) => _str(input['name'],
       fallback: _str(input['identifier'],
-          fallback: _str(input['ref'], fallback: _str(input['id']))));
+          fallback: _str(input['ref'], fallback: _str(input['id'])),),);
 
   String _resolve(dynamic value, {String fallback = ''}) {
     final s = value is String ? value.trim() : '';

@@ -17,30 +17,32 @@
  */
 
 import 'package:flutter/widgets.dart';
-import 'thunderid_provider.dart';
-import '../models/sign_out_options.dart';
 
-/// Triggers sign-out on tap. Accessible per WCAG 2.1 AA (spec §8.1).
-class SignOutButton extends StatelessWidget {
-  final SignOutOptions? options;
-  final VoidCallback? onSuccess;
+import '../models/flow_models.dart';
+import '../models/sign_up_options.dart';
+import 'thunderid_provider.dart';
+
+/// Initiates the sign-up flow on tap (spec §8.4 Actions).
+class SignUpButton extends StatelessWidget {
+  final SignUpOptions? options;
+  final void Function(EmbeddedFlowResponse)? onFlowStarted;
   final VoidCallback? onError;
 
-  const SignOutButton({super.key, this.options, this.onSuccess, this.onError});
+  const SignUpButton({super.key, this.options, this.onFlowStarted, this.onError});
 
   @override
   Widget build(BuildContext context) {
     final state = ThunderIDProvider.of(context);
-    final label = state.i18n.resolve('signOut.button');
-    return BaseSignOutButton(
+    final label = state.i18n.resolve('signUp.button');
+    return BaseSignUpButton(
       options: options,
-      onSuccess: onSuccess,
+      onFlowStarted: onFlowStarted,
       onError: onError,
       builder: (ctx, isLoading) => Semantics(
         label: label,
         button: true,
         child: GestureDetector(
-          onTap: isLoading ? null : () => _signOut(ctx),
+          onTap: isLoading ? null : () => _startSignUp(ctx),
           child: Container(
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             child: Text(label),
@@ -50,55 +52,49 @@ class SignOutButton extends StatelessWidget {
     );
   }
 
-  Future<void> _signOut(BuildContext context) async {
+  Future<void> _startSignUp(BuildContext context) async {
     final state = ThunderIDProvider.of(context);
     try {
-      await state.client.signOut(options: options);
-      await state.refresh();
-      onSuccess?.call();
+      final response = await state.client.signUp();
+      onFlowStarted?.call(response);
     } catch (_) {
       onError?.call();
     }
   }
 }
 
-/// Unstyled base variant for full style customization (spec §8.2).
-class BaseSignOutButton extends StatefulWidget {
-  final SignOutOptions? options;
-  final VoidCallback? onSuccess;
+/// Unstyled base variant (spec §8.2).
+class BaseSignUpButton extends StatefulWidget {
+  final SignUpOptions? options;
+  final void Function(EmbeddedFlowResponse)? onFlowStarted;
   final VoidCallback? onError;
   final Widget Function(BuildContext context, bool isLoading) builder;
 
-  const BaseSignOutButton({
+  const BaseSignUpButton({
     super.key,
     required this.builder,
     this.options,
-    this.onSuccess,
+    this.onFlowStarted,
     this.onError,
   });
 
   @override
-  State<BaseSignOutButton> createState() => _BaseSignOutButtonState();
+  State<BaseSignUpButton> createState() => _BaseSignUpButtonState();
 }
 
-class _BaseSignOutButtonState extends State<BaseSignOutButton> {
+class _BaseSignUpButtonState extends State<BaseSignUpButton> {
   bool _isLoading = false;
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _isLoading ? null : _signOut,
-      child: widget.builder(context, _isLoading),
-    );
-  }
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: _isLoading ? null : _start, child: widget.builder(context, _isLoading));
 
-  Future<void> _signOut() async {
+  Future<void> _start() async {
     setState(() => _isLoading = true);
     try {
       final state = ThunderIDProvider.of(context);
-      await state.client.signOut(options: widget.options);
-      await state.refresh();
-      widget.onSuccess?.call();
+      final response = await state.client.signUp();
+      widget.onFlowStarted?.call(response);
     } catch (_) {
       widget.onError?.call();
     } finally {
