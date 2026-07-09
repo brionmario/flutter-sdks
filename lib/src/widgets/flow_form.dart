@@ -241,6 +241,7 @@ class _FlowFormState extends State<FlowForm> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
+        key: Key('thunderid-field-$ref'),
         controller: _controllers[ref],
         decoration: InputDecoration(
           labelText: label,
@@ -268,6 +269,7 @@ class _FlowFormState extends State<FlowForm> {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: FilledButton(
+        key: Key('thunderid-action-$actionId'),
         onPressed: widget.isLoading
             ? null
             : () => widget.submit(
