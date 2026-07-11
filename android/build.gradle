@@ -16,6 +16,9 @@ buildscript {
 repositories {
     google()
     mavenCentral()
+    maven {
+        url 'https://storage.googleapis.com/download.flutter.io'
+    }
 }
 
 apply plugin: 'com.android.library'
