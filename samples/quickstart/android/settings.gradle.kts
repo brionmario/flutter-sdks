@@ -23,11 +23,4 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
-includeBuild("../../../android") {
-    name = "android"
-    dependencySubstitution {
-        substitute(module("dev.thunderid:android")).using(project(":"))
-    }
-}
-
 include(":app")

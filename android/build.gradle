@@ -2,7 +2,7 @@ group 'dev.thunderid.flutter'
 version '0.0.0'
 
 buildscript {
-    ext.kotlin_version = '1.9.22'
+    ext.kotlin_version = '2.2.20'
     repositories {
         google()
         mavenCentral()
@@ -18,6 +18,9 @@ repositories {
     mavenCentral()
     maven {
         url 'https://storage.googleapis.com/download.flutter.io'
+    }
+    maven {
+        url 'https://jitpack.io'
     }
 }
 
@@ -42,8 +45,23 @@ android {
     }
 }
 
+def flutterSdkPath() {
+    def envRoot = System.getenv('FLUTTER_ROOT')
+    if (envRoot != null) {
+        return envRoot
+    }
+    def localPropertiesFile = new File(rootDir, '../samples/quickstart/android/local.properties')
+    def properties = new Properties()
+    localPropertiesFile.withInputStream { properties.load(it) }
+    def sdkPath = properties.getProperty('flutter.sdk')
+    assert sdkPath != null, "flutter.sdk not set in local.properties"
+    return sdkPath
+}
+
+def flutterEngineVersion = new File(flutterSdkPath(), 'bin/cache/engine.stamp').text.trim()
+
 dependencies {
-    compileOnly 'io.flutter:flutter_embedding_debug:1.0.0-...'
-    implementation 'dev.thunderid:android:0.0.0'
+    compileOnly "io.flutter:flutter_embedding_debug:1.0.0-$flutterEngineVersion"
+    implementation 'com.github.thunder-id:android-sdks:v0.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
