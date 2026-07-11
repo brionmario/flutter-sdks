@@ -4,6 +4,15 @@
 
 Flutter plugin providing the ThunderID authentication SDK (`thunderid_flutter`). Bridges to native iOS (`ThunderID` Swift SDK) and Android (`dev.thunderid:android`) via a `MethodChannel`. The `samples/quickstart` directory contains a standalone demo app.
 
+## Vendor naming rules
+
+The SDK is white-labelable: a consuming app can override the brand/vendor namespace via `ThunderIDConfig.vendor`, so storage keys, log tags, and similar runtime names shouldn't be pinned to one brand.
+
+- Do not hardcode the literal `thunderid`/`ThunderID`/`THUNDERID` (any casing) when building a runtime key/name that a consumer's `vendor` override should control — platform-channel storage keys, log tags, and the like.
+- It's fine for **entry point file/package names** (e.g. `thunderid_flutter.dart`, `thunderid_client.dart`, `thunderid_provider.dart`) and types whose purpose IS to represent the SDK itself (e.g. `ThunderIDClient`, `ThunderIDProvider`) to carry the name. That's a fixed identity, not a per-tenant value. Don't flag those.
+- Avoiding the vendor name entirely is the best outcome, when the brand prefix isn't actually load-bearing.
+- When a brand-scoped namespace is genuinely required, resolve it from `config.vendor` (which already defaults to `'thunderid'`) instead of hardcoding a literal. If the same default-resolution logic starts appearing in more than one place, extract a small shared helper rather than repeating the literal default. Remember this may need bridging through the platform channel since this package delegates to native iOS/Android SDKs.
+
 ## Build & test
 
 ```bash

@@ -20,6 +20,9 @@ import 'preferences.dart';
 
 /// Configuration for the ThunderID Flutter SDK (spec §5.2).
 class ThunderIDConfig {
+  /// Default vendor/brand namespace used when [vendor] is not overridden.
+  static const String defaultVendor = 'thunderid';
+
   // Core
   final String baseUrl;
   final String? clientId;
@@ -46,6 +49,11 @@ class ThunderIDConfig {
   // UI Preferences (theme + i18n) — ignored by the protocol layer
   final ThunderIDPreferences? preferences;
 
+  /// Vendor/brand namespace used by the native SDK layer to derive default storage identifiers.
+  /// Override this when white-labeling the SDK under a different brand. Defaults to
+  /// [defaultVendor].
+  final String vendor;
+
   const ThunderIDConfig({
     required this.baseUrl,
     this.clientId,
@@ -61,6 +69,7 @@ class ThunderIDConfig {
     this.organizationHandle,
     this.tokenValidation = const TokenValidationConfig(),
     this.preferences,
+    this.vendor = defaultVendor,
   });
 
   Map<String, dynamic> toMap() => {
@@ -78,6 +87,7 @@ class ThunderIDConfig {
         if (organizationHandle != null) 'organizationHandle': organizationHandle,
         'tokenValidation': tokenValidation.toMap(),
         if (preferences != null) 'preferences': preferences!.toMap(),
+        'vendor': vendor,
       };
 }
 
