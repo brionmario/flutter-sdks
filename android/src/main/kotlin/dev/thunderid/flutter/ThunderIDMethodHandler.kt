@@ -17,7 +17,7 @@ class ThunderIDMethodHandler(private val context: Context) {
             when (method) {
                 "initialize" -> {
                     val config = buildConfig(args)
-                    val storage = EncryptedStorageAdapter(context)
+                    val storage = EncryptedStorageAdapter(context, prefsName = "dev.${config.vendor}.sdk.prefs")
                     result.success(client.initialize(config, storage))
                 }
                 "reInitialize" -> {
@@ -120,7 +120,8 @@ class ThunderIDMethodHandler(private val context: Context) {
             afterSignInUrl = args["afterSignInUrl"] as? String,
             afterSignOutUrl = args["afterSignOutUrl"] as? String,
             applicationId = args["applicationId"] as? String,
-            tokenValidation = validation
+            tokenValidation = validation,
+            vendor = args["vendor"] as? String ?: ThunderIDConfig.DEFAULT_VENDOR
         )
     }
 

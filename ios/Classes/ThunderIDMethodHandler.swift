@@ -127,7 +127,8 @@ final class ThunderIDMethodHandler {
             afterSignInUrl: args["afterSignInUrl"] as? String,
             afterSignOutUrl: args["afterSignOutUrl"] as? String,
             applicationId: args["applicationId"] as? String,
-            tokenValidation: validation
+            tokenValidation: validation,
+            vendor: args["vendor"] as? String ?? VendorConstants.vendorPrefix
         )
     }
 
