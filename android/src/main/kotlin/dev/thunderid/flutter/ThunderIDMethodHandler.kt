@@ -1,9 +1,11 @@
 package dev.thunderid.flutter
 
+import android.app.Activity
 import android.content.Context
 import io.flutter.plugin.common.MethodChannel.Result
 import dev.thunderid.android.*
-import dev.thunderid.android.auth.PKCEManager
+import dev.thunderid.android.auth.FederatedAuthSession
+import kotlinx.coroutines.CancellationException
 
 /**
  * Routes Flutter method channel calls to the native Android ThunderIDClient (spec §7.1).
@@ -11,6 +13,13 @@ import dev.thunderid.android.auth.PKCEManager
  */
 class ThunderIDMethodHandler(private val context: Context) {
     private val client = ThunderIDClient()
+
+    /**
+     * Set by [ThunderIDFlutterPlugin] from its `ActivityAware` callbacks. Required for
+     * `continueFederatedAuth` since launching a Custom Tab needs an Activity context; falls back
+     * to the application context (set at construction) if no Activity is currently attached.
+     */
+    var activity: Activity? = null
 
     suspend fun handle(method: String, args: Map<String, Any?>, result: Result) {
         try {
@@ -32,6 +41,28 @@ class ThunderIDMethodHandler(private val context: Context) {
                     @Suppress("UNCHECKED_CAST")
                     val requestMap = args["request"] as? Map<String, Any?> ?: emptyMap()
                     val response = client.signIn(buildPayload(payloadMap), buildFlowRequest(requestMap))
+                    result.success(encodeFlowResponse(response))
+                }
+                "continueFederatedAuth" -> {
+                    val redirectUrl = args["redirectUrl"] as? String ?: ""
+                    val actionId = args["actionId"] as? String ?: ""
+                    val applicationId = args["applicationId"] as? String ?: ""
+                    val flowId = args["flowId"] as? String
+                    val challengeToken = args["challengeToken"] as? String
+                    val callbackUri = FederatedAuthSession.launch(activity ?: context, redirectUrl)
+                    val code = callbackUri.getQueryParameter("code")
+                        ?: throw IAMException(
+                            ThunderIDErrorCode.INVALID_GRANT,
+                            "Federated sign-in did not return an authorization code"
+                        )
+                    val payload = EmbeddedSignInPayload(
+                        flowId = flowId,
+                        actionId = actionId,
+                        inputs = mapOf("code" to code),
+                        challengeToken = challengeToken
+                    )
+                    val request = EmbeddedFlowRequestConfig(applicationId = applicationId)
+                    val response = client.signIn(payload, request)
                     result.success(encodeFlowResponse(response))
                 }
                 "buildSignInUrl" -> {
@@ -97,6 +128,10 @@ class ThunderIDMethodHandler(private val context: Context) {
             }
         } catch (e: IAMException) {
             result.error(e.code.value, e.message, null)
+        } catch (e: CancellationException) {
+            // User dismissed the Custom Tab without completing federated sign-in — surfaced as a
+            // typed cancellation so the Dart layer can reset state silently instead of erroring.
+            result.error("FEDERATED_AUTH_CANCELLED", "User cancelled federated sign-in", null)
         } catch (e: Exception) {
             result.error("UNKNOWN_ERROR", e.message, null)
         }
@@ -166,11 +201,14 @@ class ThunderIDMethodHandler(private val context: Context) {
     private fun encodeFlowStepData(data: FlowStepData) = mapOf(
         "actions" to data.actions?.map { action ->
             mapOf(
-                "id" to action.id.ifEmpty { action.ref ?: action.nextNode ?: "submit" },
+                "id" to (action.id?.ifEmpty { null } ?: action.ref ?: action.nextNode ?: "submit"),
                 "ref" to action.ref,
                 "nextNode" to action.nextNode,
                 "type" to action.type,
-                "label" to action.label
+                "label" to action.label,
+                "eventType" to action.eventType,
+                "variant" to action.variant,
+                "icon" to action.icon
             )
         },
         "inputs" to data.inputs?.map { input ->
@@ -180,7 +218,25 @@ class ThunderIDMethodHandler(private val context: Context) {
                 "required" to input.required
             )
         },
-        "meta" to data.meta
+        "meta" to data.meta?.let { encodeFlowMeta(it) }
+    )
+
+    private fun encodeFlowMeta(meta: FlowMeta) = mapOf(
+        "components" to meta.components?.map { encodeFlowComponent(it) }
+    )
+
+    private fun encodeFlowComponent(comp: FlowComponent): Map<String, Any?> = mapOf(
+        "id" to comp.id,
+        "ref" to comp.ref,
+        "type" to comp.type,
+        "category" to comp.category,
+        "label" to comp.label,
+        "placeholder" to comp.placeholder,
+        "variant" to comp.variant,
+        "eventType" to comp.eventType,
+        "align" to comp.align,
+        "icon" to comp.icon,
+        "components" to comp.components?.map { encodeFlowComponent(it) }
     )
 
     private fun encodeTokenResponse(r: TokenResponse) = mapOf(

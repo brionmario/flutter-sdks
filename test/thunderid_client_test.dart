@@ -18,6 +18,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thunderid_flutter/src/models/flow_models.dart';
 import 'package:thunderid_flutter/src/models/thunderid_config.dart';
 import 'package:thunderid_flutter/src/models/thunderid_error.dart';
 import 'package:thunderid_flutter/src/thunderid_client.dart';
@@ -44,6 +45,16 @@ void main() {
             return '/';
           case 'getAccessToken':
             return 'mock-access-token';
+          case 'continueFederatedAuth':
+            final args = call.arguments as Map<Object?, Object?>;
+            if (args['redirectUrl'] == 'https://cancel.example') {
+              throw PlatformException(code: 'FEDERATED_AUTH_CANCELLED', message: 'cancelled');
+            }
+            return <String, dynamic>{
+              'flowId': 'flow-1',
+              'flowStatus': 'COMPLETE',
+              'assertion': 'mock-assertion',
+            };
           default:
             return null;
         }
@@ -146,6 +157,42 @@ void main() {
       await client.initialize(config);
       final token = await client.getAccessToken();
       expect(token, 'mock-access-token');
+    });
+  });
+
+  group('continueFederatedAuth', () {
+    test('resubmits the flow with the native-extracted code and returns the response', () async {
+      const config = ThunderIDConfig(baseUrl: 'https://localhost:8090', clientId: 'test');
+      await client.initialize(config);
+      final response = await client.continueFederatedAuth(
+        redirectUrl: 'https://idp.example/authorize?state=abc',
+        actionId: 'action_2',
+        applicationId: 'app-1',
+        flowId: 'flow-1',
+        challengeToken: 'challenge-1',
+      );
+      expect(response.flowStatus, FlowStatus.complete);
+      expect(response.assertion, 'mock-assertion');
+      final call = log.firstWhere((c) => c.method == 'continueFederatedAuth');
+      final args = call.arguments as Map<Object?, Object?>;
+      expect(args['redirectUrl'], 'https://idp.example/authorize?state=abc');
+      expect(args['actionId'], 'action_2');
+      expect(args['applicationId'], 'app-1');
+      expect(args['flowId'], 'flow-1');
+      expect(args['challengeToken'], 'challenge-1');
+    });
+
+    test('surfaces user cancellation as federatedAuthCancelled', () async {
+      const config = ThunderIDConfig(baseUrl: 'https://localhost:8090', clientId: 'test');
+      await client.initialize(config);
+      expect(
+        () => client.continueFederatedAuth(
+          redirectUrl: 'https://cancel.example',
+          actionId: 'action_2',
+          applicationId: 'app-1',
+        ),
+        throwsA(isA<IAMException>().having((e) => e.code, 'code', ThunderIDErrorCode.federatedAuthCancelled)),
+      );
     });
   });
 }

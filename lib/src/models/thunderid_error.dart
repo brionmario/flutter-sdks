@@ -50,7 +50,10 @@ enum ThunderIDErrorCode {
   networkError,
   requestTimeout,
   serverError,
-  unknownError;
+  unknownError,
+
+  // Federated / social login (TRIGGER actions)
+  federatedAuthCancelled;
 
   static const _codeMap = {
     'SDK_NOT_INITIALIZED': ThunderIDErrorCode.sdkNotInitialized,
@@ -77,6 +80,7 @@ enum ThunderIDErrorCode {
     'REQUEST_TIMEOUT': ThunderIDErrorCode.requestTimeout,
     'SERVER_ERROR': ThunderIDErrorCode.serverError,
     'UNKNOWN_ERROR': ThunderIDErrorCode.unknownError,
+    'FEDERATED_AUTH_CANCELLED': ThunderIDErrorCode.federatedAuthCancelled,
   };
 
   static ThunderIDErrorCode fromString(String code) =>

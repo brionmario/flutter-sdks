@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/flow_models.dart';
+import '../models/thunderid_error.dart';
 import '../models/token_exchange_config.dart';
 import '../models/user.dart';
 import 'flow_form.dart';
@@ -98,6 +99,10 @@ class _BaseSignInState extends State<BaseSignIn> {
   String? _error;
   bool _autoAdvancing = false;
 
+  /// Debug log tag scoped to the configured [ThunderIDConfig.vendor] rather than a hardcoded
+  /// brand literal, since a consuming app may white-label the SDK.
+  String get _logTag => '[${ThunderIDProvider.of(context).widget.config.vendor}SignIn]';
+
   @override
   void initState() {
     super.initState();
@@ -115,7 +120,7 @@ class _BaseSignInState extends State<BaseSignIn> {
       if (kDebugMode) {
         final inputList = (response.data?['inputs'] as List?) ?? const [];
         final actionList = (response.data?['actions'] as List?) ?? const [];
-        debugPrint('[ThunderIDSignIn] init response flowStatus=${response.flowStatus} inputs=$inputList actions=$actionList');
+        debugPrint('$_logTag init response flowStatus=${response.flowStatus} inputs=$inputList actions=$actionList');
       }
       if (mounted) setState(() { _currentStep = response; _error = null; });
     } catch (e) {
@@ -128,7 +133,7 @@ class _BaseSignInState extends State<BaseSignIn> {
 
   Future<void> _submit(String actionId, Map<String, String> inputs) async {
     final flowId = _currentStep?.flowId;
-    debugPrint('[ThunderIDSignIn] _submit flowId=$flowId actionId=$actionId inputs=${inputs.keys.toList()}');
+    debugPrint('$_logTag _submit flowId=$flowId actionId=$actionId inputs=${inputs.keys.toList()}');
     if (flowId == null) return;
     setState(() => _isLoading = true);
     try {
@@ -138,12 +143,39 @@ class _BaseSignInState extends State<BaseSignIn> {
         request: EmbeddedFlowRequestConfig(applicationId: widget.applicationId),
       );
 
+      if (response.type == 'REDIRECTION') {
+        if (kDebugMode) {
+          debugPrint('$_logTag REDIRECTION for actionId=$actionId, delegating to continueFederatedAuth');
+        }
+        final redirectUrl = response.data?['redirectURL'] as String?;
+        if (redirectUrl == null || redirectUrl.isEmpty) {
+          if (mounted) setState(() => _error = 'Federated sign-in did not return a redirect URL');
+          widget.onError?.call();
+          return;
+        }
+        try {
+          response = await state.client.continueFederatedAuth(
+            redirectUrl: redirectUrl,
+            actionId: actionId,
+            applicationId: widget.applicationId,
+            flowId: response.flowId ?? flowId,
+            challengeToken: response.challengeToken ?? _currentStep?.challengeToken,
+          );
+        } on IAMException catch (e) {
+          if (e.code == ThunderIDErrorCode.federatedAuthCancelled) {
+            // User dismissed the browser without completing sign-in — reset silently.
+            return;
+          }
+          rethrow;
+        }
+      }
+
       if (_shouldAutoAdvance(response)) {
         _autoAdvancing = true;
         final nextActionId = _nextActionId(response);
         if (nextActionId.isNotEmpty && response.flowId != null) {
           if (kDebugMode) {
-            debugPrint('[ThunderIDSignIn] auto-advancing actionId=$nextActionId');
+            debugPrint('$_logTag auto-advancing actionId=$nextActionId');
           }
           response = await state.client.signIn(
             payload: EmbeddedSignInPayload(
@@ -163,8 +195,8 @@ class _BaseSignInState extends State<BaseSignIn> {
         final actionCount = (response.data?['actions'] as List?)?.length ?? 0;
         final inputList = (response.data?['inputs'] as List?) ?? const [];
         final actionList = (response.data?['actions'] as List?) ?? const [];
-        debugPrint('[ThunderIDSignIn] submit response flowStatus=${response.flowStatus} hasAssertion=$hasAssertion inputs=$inputCount actions=$actionCount failureReason=${response.failureReason}');
-        debugPrint('[ThunderIDSignIn] submit response inputData=$inputList actionData=$actionList');
+        debugPrint('$_logTag submit response flowStatus=${response.flowStatus} hasAssertion=$hasAssertion inputs=$inputCount actions=$actionCount failureReason=${response.failureReason}');
+        debugPrint('$_logTag submit response inputData=$inputList actionData=$actionList');
       }
       final isComplete = response.flowStatus == FlowStatus.complete ||
           (response.assertion?.isNotEmpty ?? false);
@@ -204,7 +236,7 @@ class _BaseSignInState extends State<BaseSignIn> {
         if (mounted) setState(() { _currentStep = response; _error = null; });
       }
     } catch (e, st) {
-      debugPrint('[ThunderIDSignIn] _submit error: $e\n$st');
+      debugPrint('$_logTag _submit error: $e\n$st');
       if (mounted) setState(() => _error = e.toString());
       widget.onError?.call();
     } finally {
