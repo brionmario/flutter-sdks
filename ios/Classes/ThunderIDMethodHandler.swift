@@ -6,6 +6,7 @@ import ThunderID
 @MainActor
 final class ThunderIDMethodHandler {
     private let client = ThunderIDClient()
+    private let federatedAuthSession = FederatedAuthSession()
 
     func handle(method: String, args: [String: Any], result: @escaping FlutterResult) async {
         do {
@@ -29,6 +30,9 @@ final class ThunderIDMethodHandler {
                 let request = buildFlowRequestConfig(from: requestMap)
                 let response = try await client.signIn(payload: payload, request: request)
                 result(encodeFlowResponse(response))
+
+            case "continueFederatedAuth":
+                await handleContinueFederatedAuth(args, result: result)
 
             case "buildSignInUrl":
                 let url = try client.buildSignInURL()
@@ -105,6 +109,76 @@ final class ThunderIDMethodHandler {
         } catch {
             result(FlutterError(code: "UNKNOWN_ERROR", message: error.localizedDescription, details: nil))
         }
+    }
+
+    // MARK: - Federated auth (TRIGGER actions)
+
+    /// Resumes a TRIGGER action after the server responded `type: "REDIRECTION"`: opens
+    /// `redirectUrl` in an `ASWebAuthenticationSession`, extracts the `code` query parameter
+    /// from the provider's callback, and resubmits the flow with `inputs: {"code": code}` —
+    /// mirroring `BaseSignIn.handleRedirection` in `ThunderIDSwiftUI` (spec §6.1 federated
+    /// sign-in extension). Handles its own errors and always calls `result` itself so a
+    /// cancelled browser session can be reported with a dedicated `FEDERATED_AUTH_CANCELLED`
+    /// code instead of falling into the generic `UNKNOWN_ERROR` path.
+    private func handleContinueFederatedAuth(_ args: [String: Any], result: @escaping FlutterResult) async {
+        let redirectUrlStr = args["redirectUrl"] as? String ?? ""
+        guard let url = URL(string: redirectUrlStr) else {
+            result(FlutterError(code: "INVALID_REDIRECT_URI", message: "Invalid redirect URL", details: nil))
+            return
+        }
+        guard let scheme = callbackURLScheme(from: url) else {
+            result(FlutterError(
+                code: "INVALID_CONFIGURATION",
+                message: "Unable to determine callback URL scheme from the authorization URL's " +
+                    "redirect_uri or afterSignInUrl",
+                details: nil
+            ))
+            return
+        }
+        do {
+            let callbackURL = try await federatedAuthSession.authenticate(url: url, callbackURLScheme: scheme)
+            guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "code" })?.value else {
+                result(FlutterError(
+                    code: "INVALID_GRANT",
+                    message: "Authorization code missing from callback URL",
+                    details: nil
+                ))
+                return
+            }
+            let payload = EmbeddedSignInPayload(
+                flowId: args["flowId"] as? String,
+                actionId: args["actionId"] as? String ?? "",
+                inputs: ["code": code],
+                challengeToken: args["challengeToken"] as? String
+            )
+            let request = buildFlowRequestConfig(from: ["applicationId": args["applicationId"] as? String ?? ""])
+            let response = try await client.signIn(payload: payload, request: request)
+            result(encodeFlowResponse(response))
+        } catch is FederatedAuthSession.CancelledError {
+            result(FlutterError(code: "FEDERATED_AUTH_CANCELLED", message: "User cancelled federated sign-in", details: nil))
+        } catch let error as ThunderIDError {
+            result(FlutterError(code: error.code.rawValue, message: error.message, details: nil))
+        } catch {
+            result(FlutterError(code: "UNKNOWN_ERROR", message: error.localizedDescription, details: nil))
+        }
+    }
+
+    /// Resolves the scheme `ASWebAuthenticationSession` should watch for. `afterSignInUrl` is
+    /// optional on `ThunderIDConfig` (Android and the Dart API impose no equivalent requirement),
+    /// so prefer the `redirect_uri` query parameter already present on every standard OAuth2
+    /// authorization URL, falling back to `afterSignInUrl` only if that's absent.
+    private func callbackURLScheme(from redirectUrl: URL) -> String? {
+        if let redirectUri = URLComponents(url: redirectUrl, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "redirect_uri" })?.value,
+           let scheme = URLComponents(string: redirectUri)?.scheme {
+            return scheme
+        }
+        guard let afterSignInUrl = try? client.getConfiguration().afterSignInUrl,
+              let scheme = URLComponents(string: afterSignInUrl)?.scheme else {
+            return nil
+        }
+        return scheme
     }
 
     // MARK: - Builders
@@ -187,13 +261,46 @@ final class ThunderIDMethodHandler {
                     "ref": $0.ref as Any,
                     "nextNode": $0.nextNode as Any,
                     "label": $0.label as Any,
+                    "eventType": $0.eventType as Any,
+                    "type": $0.type as Any,
+                    "variant": $0.variant as Any,
+                    "icon": $0.icon as Any,
                 ]
             }
         }
-        if let meta = d.meta,
-           let encoded = try? JSONEncoder().encode(meta),
-           let obj = try? JSONSerialization.jsonObject(with: encoded) {
-            result["meta"] = obj
+        if let meta = d.meta {
+            result["meta"] = encodeFlowMeta(meta)
+        }
+        result["redirectURL"] = d.redirectURL as Any
+        if let additionalData = d.additionalData {
+            result["additionalData"] = additionalData.mapValues { $0.value }
+        }
+        return result
+    }
+
+    private func encodeFlowMeta(_ meta: FlowMeta) -> [String: Any] {
+        var result: [String: Any] = [:]
+        if let components = meta.components {
+            result["components"] = components.map { encodeFlowComponent($0) }
+        }
+        return result
+    }
+
+    private func encodeFlowComponent(_ c: FlowComponent) -> [String: Any] {
+        var result: [String: Any] = [
+            "id": c.id as Any,
+            "ref": c.ref as Any,
+            "type": c.type as Any,
+            "category": c.category as Any,
+            "label": c.label as Any,
+            "placeholder": c.placeholder as Any,
+            "variant": c.variant as Any,
+            "eventType": c.eventType as Any,
+            "align": c.align as Any,
+            "icon": c.icon as Any,
+        ]
+        if let components = c.components {
+            result["components"] = components.map { encodeFlowComponent($0) }
         }
         return result
     }

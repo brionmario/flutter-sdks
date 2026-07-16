@@ -79,6 +79,41 @@ class ThunderIDClient {
     }
   }
 
+  /// Resumes a TRIGGER action (federated/social login) after the server
+  /// responded with `type: "REDIRECTION"` (spec §6.1 embedded flow, federated
+  /// sign-in extension). The native layer opens [redirectUrl] in a system
+  /// browser (Custom Tabs on Android, `ASWebAuthenticationSession` on iOS),
+  /// waits for the provider to redirect back to the app's registered
+  /// callback scheme, extracts the `code` query parameter, and resubmits the
+  /// same flow with `inputs: {"code": code}` — mirroring the exact resubmit
+  /// pattern used by the native Android/iOS SDKs.
+  ///
+  /// Throws [IAMException] with [ThunderIDErrorCode.federatedAuthCancelled]
+  /// if the user dismisses the browser without completing sign-in; callers
+  /// should treat this as a silent reset rather than an error.
+  Future<EmbeddedFlowResponse> continueFederatedAuth({
+    required String redirectUrl,
+    required String actionId,
+    required String applicationId,
+    String? flowId,
+    String? challengeToken,
+  }) async {
+    _requireInitialized();
+    _isLoading = true;
+    try {
+      final result = await _channel.invokeMap('continueFederatedAuth', {
+        'redirectUrl': redirectUrl,
+        'actionId': actionId,
+        'applicationId': applicationId,
+        if (flowId != null) 'flowId': flowId,
+        if (challengeToken != null) 'challengeToken': challengeToken,
+      });
+      return EmbeddedFlowResponse.fromMap(result);
+    } finally {
+      _isLoading = false;
+    }
+  }
+
   /// Builds the redirect-based sign-in URL. Open this in an in-app browser or
   /// custom tab, then call [handleRedirectCallback] with the callback URL.
   Future<String> buildSignInUrl({SignInOptions? options}) async {

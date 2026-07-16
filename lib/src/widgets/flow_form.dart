@@ -16,10 +16,18 @@
  * under the License.
  */
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../flow_template_resolver.dart';
 import '../models/flow_models.dart';
+import 'adapters/facebook_button.dart';
+import 'adapters/github_button.dart';
+import 'adapters/google_button.dart';
+import 'adapters/linkedin_button.dart';
+import 'adapters/microsoft_button.dart';
+import 'adapters/outlined_trigger_button.dart';
 import 'thunderid_provider.dart';
 
 /// Internal widget used by [ThunderIDSignIn] and [ThunderIDSignUp] to render a
@@ -30,7 +38,8 @@ class FlowForm extends StatefulWidget {
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
   final String? error;
-  final Future<void> Function(String actionId, Map<String, String> inputs) submit;
+  final Future<void> Function(String actionId, Map<String, String> inputs)
+      submit;
   final String submitLabel;
 
   const FlowForm({
@@ -49,6 +58,7 @@ class FlowForm extends StatefulWidget {
 
 class _FlowFormState extends State<FlowForm> {
   final _controllers = <String, TextEditingController>{};
+  final _linkRecognizers = <TapGestureRecognizer>[];
   FlowTemplateResolver? _resolver;
 
   @override
@@ -62,7 +72,12 @@ class _FlowFormState extends State<FlowForm> {
   @override
   void dispose() {
     for (final c in _controllers.values) {
+      {
       c.dispose();
+    }
+    for (final r in _linkRecognizers) {
+      r.dispose();
+    }
     }
     super.dispose();
   }
@@ -88,10 +103,18 @@ class _FlowFormState extends State<FlowForm> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // _renderRichText appends a fresh TapGestureRecognizer per link on every build; dispose the
+    // previous build's recognizers first so they don't accumulate across rebuilds.
+    for (final r in _linkRecognizers) {
+      r.dispose();
+    }
+    _linkRecognizers.clear();
+
     final data = step?.data;
     final rawMeta = data?['meta'];
-    final components =
-        rawMeta is Map ? _readList(rawMeta['components']) : const <Map<String, dynamic>>[];
+    final components = rawMeta is Map
+        ? _readList(rawMeta['components'])
+        : const <Map<String, dynamic>>[];
     final inputs = _readList(data?['inputs']);
     final actions = _readList(data?['actions']);
 
@@ -105,11 +128,13 @@ class _FlowFormState extends State<FlowForm> {
           if (!_hasActionComponent(components) && actions.isNotEmpty)
             ...actions.map((a) => _renderAction(context, a, actions)),
         ] else ...[
-          ...inputs.map((i) => _renderField(
-                context,
-                {'ref': _inputRef(i), 'label': '', 'type': i['type']},
-                _str(i['type']),
-              ),),
+          ...inputs.map(
+            (i) => _renderField(
+              context,
+              {'ref': _inputRef(i), 'label': '', 'type': i['type']},
+              _str(i['type']),
+            ),
+          ),
           if (actions.isNotEmpty)
             ...actions.map((a) => _renderAction(context, a, actions))
           else
@@ -124,7 +149,9 @@ class _FlowFormState extends State<FlowForm> {
           Text(
             widget.error!,
             style: TextStyle(
-                color: Theme.of(context).colorScheme.error, fontSize: 13,),
+              color: Theme.of(context).colorScheme.error,
+              fontSize: 13,
+            ),
           ),
         ],
       ],
@@ -154,9 +181,12 @@ class _FlowFormState extends State<FlowForm> {
     final category = _str(comp['category']);
     if (category.isNotEmpty) return category;
     switch (_str(comp['type'])) {
+      case 'DIVIDER':
+        return 'DIVIDER';
+      case 'RICH_TEXT':
+        return 'RICH_TEXT';
       case 'TEXT':
       case 'IMAGE':
-      case 'RICH_TEXT':
         return 'DISPLAY';
       case 'BLOCK':
         return 'BLOCK';
@@ -180,6 +210,10 @@ class _FlowFormState extends State<FlowForm> {
     switch (_effectiveCategory(comp)) {
       case 'DISPLAY':
         return _renderDisplay(context, comp);
+      case 'DIVIDER':
+        return _renderDivider(context, comp);
+      case 'RICH_TEXT':
+        return _renderRichText(context, comp);
       case 'BLOCK':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,6 +225,15 @@ class _FlowFormState extends State<FlowForm> {
       case 'FIELD':
         return _renderField(context, comp, _str(comp['type']));
       case 'ACTION':
+        final nested = _readList(comp['components']);
+        if (nested.isNotEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children:
+                nested.map((c) => _renderComponent(context, c, actions)).toList(),
+          );
+        }
         return _renderAction(context, comp, actions);
       default:
         return const SizedBox.shrink();
@@ -199,6 +242,16 @@ class _FlowFormState extends State<FlowForm> {
 
   Widget _renderDisplay(BuildContext context, Map<String, dynamic> comp) {
     final type = _str(comp['type']);
+    // The real backend sends an explicit `category: "DISPLAY"` on DIVIDER
+    // and RICH_TEXT components too, so `_effectiveCategory` short-circuits
+    // to 'DISPLAY' before ever consulting `type`. Dispatch on `type` here
+    // so those components still render correctly instead of being dropped.
+    if (type == 'DIVIDER') {
+      return _renderDivider(context, comp);
+    }
+    if (type == 'RICH_TEXT') {
+      return _renderRichText(context, comp);
+    }
     if (type == 'TEXT') {
       final label = _resolve(comp['label']);
       if (label.isEmpty) return const SizedBox.shrink();
@@ -208,9 +261,8 @@ class _FlowFormState extends State<FlowForm> {
               .titleMedium
               ?.copyWith(fontWeight: FontWeight.bold)
           : Theme.of(context).textTheme.bodyMedium;
-      final align = _str(comp['align']) == 'center'
-          ? TextAlign.center
-          : TextAlign.start;
+      final align =
+          _str(comp['align']) == 'center' ? TextAlign.center : TextAlign.start;
       return Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Text(label, style: style, textAlign: align),
@@ -226,6 +278,83 @@ class _FlowFormState extends State<FlowForm> {
       );
     }
     return const SizedBox.shrink();
+  }
+
+  Widget _renderDivider(BuildContext context, Map<String, dynamic> comp) {
+    final label = _resolve(comp['label'], fallback: 'Or');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          const Expanded(child: Divider()),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          const Expanded(child: Divider()),
+        ],
+      ),
+    );
+  }
+
+  Widget _renderRichText(BuildContext context, Map<String, dynamic> comp) {
+    final html = _resolve(comp['label']);
+    if (html.isEmpty) return const SizedBox.shrink();
+
+    final linkPattern = RegExp(
+      r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+      dotAll: true,
+    );
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final match in linkPattern.allMatches(html)) {
+      if (match.start > cursor) {
+        final plain = _stripTags(html.substring(cursor, match.start));
+        if (plain.trim().isNotEmpty) spans.add(TextSpan(text: plain));
+      }
+      final href = match.group(1) ?? '';
+      final linkText = _stripTags(match.group(2) ?? '').trim();
+      final recognizer = TapGestureRecognizer()..onTap = () => _openLink(href);
+      _linkRecognizers.add(recognizer);
+      spans.add(
+        TextSpan(
+          text: linkText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
+          recognizer: recognizer,
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < html.length) {
+      final plain = _stripTags(html.substring(cursor));
+      if (plain.trim().isNotEmpty) spans.add(TextSpan(text: plain));
+    }
+    if (spans.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text.rich(
+        TextSpan(
+          style: Theme.of(context).textTheme.bodyMedium,
+          children: spans,
+        ),
+      ),
+    );
+  }
+
+  String _stripTags(String value) => value.replaceAll(RegExp(r'<[^>]+>'), '');
+
+  Future<void> _openLink(String url) async {
+    if (url.isEmpty || url.startsWith('{{')) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (uri.scheme.toLowerCase() != 'http' && uri.scheme.toLowerCase() != 'https') {
+      return;
+    }
+    await launchUrl(uri);
   }
 
   Widget _renderField(
@@ -245,7 +374,7 @@ class _FlowFormState extends State<FlowForm> {
         controller: _controllers[ref],
         decoration: InputDecoration(
           labelText: label,
-          hintText: _capitalize(ref),
+          hintText: _resolve(comp['placeholder'], fallback: _capitalize(ref)),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           border: const OutlineInputBorder(),
         ),
@@ -266,6 +395,60 @@ class _FlowFormState extends State<FlowForm> {
     final label = _resolve(comp['label'], fallback: widget.submitLabel);
     final metaActionId = _str(comp['ref'], fallback: _str(comp['id']));
     final actionId = _findActionId(metaActionId, actions);
+    final eventType = _str(
+      comp['eventType'],
+      fallback: _str(_actionForId(metaActionId, actions)?['eventType']),
+    );
+
+    if (eventType.toUpperCase() == 'TRIGGER') {
+      void onPressed() => widget.submit(
+            actionId,
+            _controllers.map((k, v) => MapEntry(k, v.text)),
+          );
+      final hint =
+          '$metaActionId $label ${_str(comp['icon'])}'.toLowerCase();
+      if (hint.contains('google')) {
+        return GoogleButton(
+          label: label,
+          isLoading: widget.isLoading,
+          onPressed: onPressed,
+        );
+      }
+      if (hint.contains('github')) {
+        return GitHubButton(
+          label: label,
+          isLoading: widget.isLoading,
+          onPressed: onPressed,
+        );
+      }
+      if (hint.contains('facebook')) {
+        return FacebookButton(
+          label: label,
+          isLoading: widget.isLoading,
+          onPressed: onPressed,
+        );
+      }
+      if (hint.contains('microsoft')) {
+        return MicrosoftButton(
+          label: label,
+          isLoading: widget.isLoading,
+          onPressed: onPressed,
+        );
+      }
+      if (hint.contains('linkedin')) {
+        return LinkedInButton(
+          label: label,
+          isLoading: widget.isLoading,
+          onPressed: onPressed,
+        );
+      }
+      return OutlinedTriggerButton(
+        label: label,
+        isLoading: widget.isLoading,
+        onPressed: onPressed,
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: FilledButton(
@@ -287,8 +470,22 @@ class _FlowFormState extends State<FlowForm> {
     );
   }
 
+  Map<String, dynamic>? _actionForId(
+    String metaActionId,
+    List<Map<String, dynamic>> actions,
+  ) {
+    for (final a in actions) {
+      if (_str(a['ref']) == metaActionId || _str(a['id']) == metaActionId) {
+        return a;
+      }
+    }
+    return null;
+  }
+
   String _findActionId(
-      String metaActionId, List<Map<String, dynamic>> actions,) {
+    String metaActionId,
+    List<Map<String, dynamic>> actions,
+  ) {
     if (actions.isEmpty) return 'submit';
     final byRef = actions.firstWhere(
       (a) => _str(a['ref']) == metaActionId,
@@ -307,9 +504,13 @@ class _FlowFormState extends State<FlowForm> {
     return _actionSubmitId(actions.first);
   }
 
-  String _actionSubmitId(Map<String, dynamic> a) => _str(a['ref'],
-      fallback: _str(a['id'],
-          fallback: _str(a['nextNode'], fallback: 'submit'),),);
+  String _actionSubmitId(Map<String, dynamic> a) => _str(
+        a['ref'],
+        fallback: _str(
+          a['id'],
+          fallback: _str(a['nextNode'], fallback: 'submit'),
+        ),
+      );
 
   int? _actionIndex(String id) {
     if (!id.startsWith('action_')) return null;
@@ -328,6 +529,7 @@ class _FlowFormState extends State<FlowForm> {
         walk(_readList(c['components']));
       }
     }
+
     walk(comps);
     return refs;
   }
@@ -344,6 +546,7 @@ class _FlowFormState extends State<FlowForm> {
         if (found) return;
       }
     }
+
     walk(comps);
     return found;
   }
@@ -362,13 +565,21 @@ class _FlowFormState extends State<FlowForm> {
   String _capitalize(String s) =>
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-  String _fieldRef(Map<String, dynamic> comp) => _str(comp['ref'],
-      fallback: _str(comp['identifier'],
-          fallback: _str(comp['name'], fallback: _str(comp['id'])),),);
+  String _fieldRef(Map<String, dynamic> comp) => _str(
+        comp['ref'],
+        fallback: _str(
+          comp['identifier'],
+          fallback: _str(comp['name'], fallback: _str(comp['id'])),
+        ),
+      );
 
-  String _inputRef(Map<String, dynamic> input) => _str(input['name'],
-      fallback: _str(input['identifier'],
-          fallback: _str(input['ref'], fallback: _str(input['id'])),),);
+  String _inputRef(Map<String, dynamic> input) => _str(
+        input['name'],
+        fallback: _str(
+          input['identifier'],
+          fallback: _str(input['ref'], fallback: _str(input['id'])),
+        ),
+      );
 
   String _resolve(dynamic value, {String fallback = ''}) {
     final s = value is String ? value.trim() : '';
