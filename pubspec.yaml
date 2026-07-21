@@ -28,3 +28,6 @@ flutter:
         pluginClass: ThunderIDFlutterPlugin
       ios:
         pluginClass: ThunderIDFlutterPlugin
+  assets:
+    - assets/logo-icons/anonymous/
+    - assets/logo-icons/entity/
