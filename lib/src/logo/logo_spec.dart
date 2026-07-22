@@ -37,7 +37,7 @@ enum AvatarVariant {
   anonymousAnimal,
 
   /// One of the curated "anonymous entity" badge icons (applications, organizations, resource
-  /// servers) — a bundled asset image.
+  /// servers, agents) — a bundled asset image.
   anonymousEntity,
 }
 

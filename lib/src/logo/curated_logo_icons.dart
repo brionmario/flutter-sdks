@@ -50,7 +50,7 @@ String? anonymousAnimalAssetPath(String name) =>
         : null;
 
 /// Keys of the curated "anonymous entity" badge icon set (lowercase) — applications,
-/// organizations, and resource servers — matching the
+/// organizations, resource servers, and agents — matching the
 /// `avatar:...,variant=anonymous_entity,content=<key>` logo spec scheme supported by the web
 /// SDK's logo picker.
 const List<String> kAnonymousEntityNames = <String>[
@@ -87,6 +87,9 @@ const List<String> kAnonymousEntityNames = <String>[
   'circuit_node',
   'antenna',
   'valve',
+  'bot_head',
+  'brain',
+  'neural_net',
 ];
 
 /// Resolves an `avatar:...,variant=anonymous_entity,content=<name>` spec's entity key to its
