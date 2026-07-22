@@ -147,6 +147,14 @@ class ThunderIDMethodHandler(private val context: Context) {
             validateIssuer = validationMap?.get("validateIssuer") as? Boolean ?: true,
             clockTolerance = validationMap?.get("clockTolerance") as? Int ?: 0
         )
+        val attestationEnabled = args["attestationEnabled"] as? Boolean ?: false
+        val cloudProjectNumber = (args["cloudProjectNumber"] as? Number)?.toLong()
+        if (attestationEnabled && (cloudProjectNumber == null || cloudProjectNumber <= 0L)) {
+            throw IAMException(
+                ThunderIDErrorCode.INVALID_CONFIGURATION,
+                "cloudProjectNumber must be a positive number when attestationEnabled is true"
+            )
+        }
         @Suppress("UNCHECKED_CAST")
         return ThunderIDConfig(
             baseUrl = baseUrl,
@@ -155,6 +163,12 @@ class ThunderIDMethodHandler(private val context: Context) {
             afterSignInUrl = args["afterSignInUrl"] as? String,
             afterSignOutUrl = args["afterSignOutUrl"] as? String,
             applicationId = args["applicationId"] as? String,
+            attestationEnabled = attestationEnabled,
+            attestationTokenProvider = if (attestationEnabled) {
+                PlayIntegrityTokenProvider(context, cloudProjectNumber!!)::requestToken
+            } else {
+                null
+            },
             tokenValidation = validation,
             vendor = args["vendor"] as? String ?: ThunderIDConfig.DEFAULT_VENDOR
         )

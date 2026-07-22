@@ -30,6 +30,10 @@ void main() async {
         baseUrl: dotenv.env['THUNDERID_BASE_URL']!,
         applicationId: dotenv.env['THUNDERID_APP_ID'],
         scopes: const ['openid', 'profile', 'email'],
+        attestationEnabled:
+            dotenv.env['THUNDERID_ATTESTATION_ENABLED']?.toLowerCase() == 'true',
+        cloudProjectNumber:
+            int.tryParse(dotenv.env['THUNDERID_CLOUD_PROJECT_NUMBER'] ?? ''),
       ),
       child: const QuickstartApp(),
     ),

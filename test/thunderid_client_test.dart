@@ -140,6 +140,24 @@ void main() {
       expect(map.containsKey('clientId'), false);
       expect(map.containsKey('afterSignInUrl'), false);
     });
+
+    test('attestation defaults to disabled', () {
+      const config = ThunderIDConfig(baseUrl: 'https://localhost:8090');
+      final map = config.toMap();
+      expect(map['attestationEnabled'], false);
+      expect(map.containsKey('cloudProjectNumber'), false);
+    });
+
+    test('toMap includes attestation fields when set', () {
+      const config = ThunderIDConfig(
+        baseUrl: 'https://localhost:8090',
+        attestationEnabled: true,
+        cloudProjectNumber: 123456789,
+      );
+      final map = config.toMap();
+      expect(map['attestationEnabled'], true);
+      expect(map['cloudProjectNumber'], 123456789);
+    });
   });
 
   group('sign-out', () {
