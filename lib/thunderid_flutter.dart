@@ -51,6 +51,7 @@ export 'src/widgets/sign_up_button.dart';
 export 'src/widgets/signed_in.dart';
 export 'src/widgets/signed_out.dart';
 export 'src/widgets/thunderid_provider.dart';
+export 'src/widgets/user_avatar.dart';
 export 'src/widgets/user_dropdown.dart';
 export 'src/widgets/user_object.dart';
 export 'src/widgets/user_profile.dart';

@@ -62,6 +62,7 @@ class _MicrosoftGlyph extends StatelessWidget {
 class MicrosoftButton extends StatelessWidget {
   final String label;
   final bool isLoading;
+  final bool disabled;
   final VoidCallback onPressed;
 
   const MicrosoftButton({
@@ -69,12 +70,14 @@ class MicrosoftButton extends StatelessWidget {
     required this.onPressed,
     this.label = 'Continue with Microsoft',
     this.isLoading = false,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) => OutlinedTriggerButton(
         label: label,
         isLoading: isLoading,
+        disabled: disabled,
         onPressed: onPressed,
         icon: const _MicrosoftGlyph(),
       );

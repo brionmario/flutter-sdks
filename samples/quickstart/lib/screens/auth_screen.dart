@@ -87,7 +87,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            'OAuth 2.0, PKCE, MFA, and JWT — out of the box in minutes.',
+                            'OAuth 2.0, PKCE, MFA, and JWT - out of the box in minutes.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 15,
@@ -251,55 +251,20 @@ class _AuthSheetState extends State<_AuthSheet> {
   }
 
   Widget _buildSheetContent(BuildContext context, String applicationId) {
+    // The bottom sheet is pushed via the Navigator, so it doesn't automatically dismiss
+    // just because the app's root widget swaps from AuthScreen to HomeScreen once signed in —
+    // it must be popped explicitly once the flow completes, or it's left stuck showing its
+    // final "complete" spinner on top of the (already rendered) home screen underneath.
     switch (_mode) {
       case 'login':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SignIn(applicationId: applicationId),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => setState(() => _mode = 'recover'),
-              child: const Text('Forgot password?'),
-            ),
-            TextButton(
-              onPressed: () => setState(() => _mode = 'signup'),
-              child: const Text("Don't have an account? Create one"),
-            ),
-          ],
+        return SignIn(
+          applicationId: applicationId,
+          onSuccess: (_) => Navigator.of(context).pop(),
         );
       case 'signup':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SignUp(applicationId: applicationId),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => setState(() => _mode = 'login'),
-              child: const Text('Already have an account? Sign in'),
-            ),
-          ],
-        );
-      case 'recover':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 16),
-            const Text(
-              'Password recovery',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Enter your email address and we\'ll send you a link to reset your password.',
-              style: TextStyle(fontSize: 14, color: Color(0xFF5A7085)),
-            ),
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: () => setState(() => _mode = 'login'),
-              child: const Text('Back to sign in'),
-            ),
-          ],
+        return SignUp(
+          applicationId: applicationId,
+          onSuccess: () => Navigator.of(context).pop(),
         );
       default:
         return const SizedBox.shrink();

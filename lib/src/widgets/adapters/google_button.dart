@@ -67,6 +67,7 @@ class _GoogleGlyph extends StatelessWidget {
 class GoogleButton extends StatelessWidget {
   final String label;
   final bool isLoading;
+  final bool disabled;
   final VoidCallback onPressed;
 
   const GoogleButton({
@@ -74,12 +75,14 @@ class GoogleButton extends StatelessWidget {
     required this.onPressed,
     this.label = 'Continue with Google',
     this.isLoading = false,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) => OutlinedTriggerButton(
         label: label,
         isLoading: isLoading,
+        disabled: disabled,
         onPressed: onPressed,
         icon: const _GoogleGlyph(),
       );
