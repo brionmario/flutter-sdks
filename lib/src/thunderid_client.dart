@@ -114,6 +114,29 @@ class ThunderIDClient {
     }
   }
 
+  /// Performs a native WebAuthn assertion ceremony (sign-in with an existing passkey) after
+  /// the server responded with a `passkeyChallenge` in `data.additionalData`, and returns the
+  /// flat `credentialId`/`clientDataJSON`/`authenticatorData`/`signature`/`userHandle` input map
+  /// to resubmit via [signIn].
+  Future<Map<String, String>> performPasskeyAuthentication({required String requestOptionsJson}) async {
+    _requireInitialized();
+    final result = await _channel.invokeMap('performPasskeyAuthentication', {
+      'requestOptionsJson': requestOptionsJson,
+    });
+    return result.cast<String, String>();
+  }
+
+  /// Performs a native WebAuthn attestation ceremony (registers a new passkey) after the server
+  /// responded with `passkeyCreationOptions` in `data.additionalData`, and returns the flat
+  /// `credentialId`/`clientDataJSON`/`attestationObject` input map to resubmit via [signIn].
+  Future<Map<String, String>> performPasskeyRegistration({required String creationOptionsJson}) async {
+    _requireInitialized();
+    final result = await _channel.invokeMap('performPasskeyRegistration', {
+      'creationOptionsJson': creationOptionsJson,
+    });
+    return result.cast<String, String>();
+  }
+
   /// Builds the redirect-based sign-in URL. Open this in an in-app browser or
   /// custom tab, then call [handleRedirectCallback] with the callback URL.
   Future<String> buildSignInUrl({SignInOptions? options}) async {

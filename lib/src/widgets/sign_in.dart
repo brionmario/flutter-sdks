@@ -126,7 +126,7 @@ class _BaseSignInState extends State<BaseSignIn> {
         final actionList = (response.data?['actions'] as List?) ?? const [];
         debugPrint('$_logTag init response flowStatus=${response.flowStatus} inputs=$inputList actions=$actionList');
       }
-      if (mounted) setState(() { _currentStep = response; _error = null; });
+      await _finishResponse(response, actionId: 'init', flowId: response.flowId ?? '');
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
       widget.onError?.call();
@@ -141,12 +141,40 @@ class _BaseSignInState extends State<BaseSignIn> {
     if (flowId == null) return;
     setState(() { _isLoading = true; _loadingActionId = actionId; });
     try {
-      final state = ThunderIDProvider.of(context);
-      var response = await state.client.signIn(
+      final response = await ThunderIDProvider.of(context).client.signIn(
         payload: EmbeddedSignInPayload(flowId: flowId, actionId: actionId, inputs: inputs, challengeToken: _currentStep?.challengeToken),
         request: EmbeddedFlowRequestConfig(applicationId: widget.applicationId),
       );
+      await _finishResponse(response, actionId: actionId, flowId: flowId);
+    } catch (e, st) {
+      debugPrint('$_logTag _submit error: $e\n$st');
+      if (mounted) setState(() => _error = e.toString());
+      widget.onError?.call();
+    } finally {
+      _autoAdvancing = false;
+      if (mounted) setState(() { _isLoading = false; _loadingActionId = null; });
+    }
+  }
 
+  /// Shared response-handling tail for both [_initFlow] and [_submit]: resolves any pending
+  /// passkey ceremony, follows a `REDIRECTION` federated-auth step, auto-advances a
+  /// single-action step, and then applies the terminal completion/error/incomplete state.
+  Future<void> _finishResponse(
+    EmbeddedFlowResponse initialResponse, {
+    required String actionId,
+    required String flowId,
+  }) async {
+    final state = ThunderIDProvider.of(context);
+    var response = initialResponse;
+
+    if (response.additionalData?['passkeyChallenge'] != null ||
+        response.additionalData?['passkeyCreationOptions'] != null) {
+      final ceremonyResponse = await _performPasskeyCeremony(response);
+      if (ceremonyResponse == null) return;
+      response = ceremonyResponse;
+    }
+
+    try {
       if (response.type == 'REDIRECTION') {
         if (kDebugMode) {
           debugPrint('$_logTag REDIRECTION for actionId=$actionId, delegating to continueFederatedAuth');
@@ -239,13 +267,45 @@ class _BaseSignInState extends State<BaseSignIn> {
       } else {
         if (mounted) setState(() { _currentStep = response; _error = null; });
       }
-    } catch (e, st) {
-      debugPrint('$_logTag _submit error: $e\n$st');
-      if (mounted) setState(() => _error = e.toString());
-      widget.onError?.call();
     } finally {
       _autoAdvancing = false;
-      if (mounted) setState(() { _isLoading = false; _loadingActionId = null; });
+    }
+  }
+
+  /// Runs the native WebAuthn ceremony (`performPasskeyAuthentication` for a
+  /// `passkeyChallenge`, `performPasskeyRegistration` for `passkeyCreationOptions`) and
+  /// resubmits the flow with the resulting flat inputs, without requiring another user tap.
+  /// Loops in case the resubmit itself returns another passkey ceremony step. Returns `null`
+  /// (after setting [_error]) on ceremony failure, so the caller can bail out of [_submit].
+  Future<EmbeddedFlowResponse?> _performPasskeyCeremony(EmbeddedFlowResponse response) async {
+    final state = ThunderIDProvider.of(context);
+    var current = response;
+    while (true) {
+      final passkeyChallenge = current.additionalData?['passkeyChallenge'] as String?;
+      final passkeyCreationOptions = current.additionalData?['passkeyCreationOptions'] as String?;
+      if (passkeyChallenge == null && passkeyCreationOptions == null) return current;
+
+      final flowId = current.flowId;
+      if (flowId == null) return current;
+
+      try {
+        final inputs = passkeyChallenge != null
+            ? await state.client.performPasskeyAuthentication(requestOptionsJson: passkeyChallenge)
+            : await state.client.performPasskeyRegistration(creationOptionsJson: passkeyCreationOptions!);
+        current = await state.client.signIn(
+          payload: EmbeddedSignInPayload(
+            flowId: flowId,
+            actionId: '',
+            inputs: inputs,
+            challengeToken: current.challengeToken,
+          ),
+          request: EmbeddedFlowRequestConfig(applicationId: widget.applicationId),
+        );
+      } catch (e) {
+        if (mounted) setState(() => _error = e.toString());
+        widget.onError?.call();
+        return null;
+      }
     }
   }
 

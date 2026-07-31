@@ -65,6 +65,18 @@ class ThunderIDMethodHandler(private val context: Context) {
                     val response = client.signIn(payload, request)
                     result.success(encodeFlowResponse(response))
                 }
+                "performPasskeyAuthentication", "performPasskeyRegistration" -> {
+                    // TODO: blocked on bumping the pinned `com.github.thunder-id:android-sdks:<sha>`
+                    // dependency in android/build.gradle to a release that includes
+                    // `dev.thunderid.android.auth.PasskeyClient` (native CredentialManager ceremony
+                    // support) and `FlowStepData.additionalData` (see encodeFlowStepData below).
+                    // Until then, surface a typed error instead of hanging or silently no-oping.
+                    result.error(
+                        "PASSKEY_NOT_SUPPORTED",
+                        "Passkey ceremonies are not yet available on Android via this Flutter plugin",
+                        null
+                    )
+                }
                 "buildSignInUrl" -> {
                     result.success(client.buildSignInUrl())
                 }
@@ -212,6 +224,9 @@ class ThunderIDMethodHandler(private val context: Context) {
         "challengeToken" to r.challengeToken
     )
 
+    // TODO: forward `additionalData` (passkeyChallenge/passkeyCreationOptions) here once the
+    // pinned `android-sdks` dependency's `FlowStepData` carries that field — see the
+    // "performPasskeyAuthentication"/"performPasskeyRegistration" TODO above.
     private fun encodeFlowStepData(data: FlowStepData) = mapOf(
         "actions" to data.actions?.map { action ->
             mapOf(

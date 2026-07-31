@@ -34,6 +34,20 @@ final class ThunderIDMethodHandler {
             case "continueFederatedAuth":
                 await handleContinueFederatedAuth(args, result: result)
 
+            case "performPasskeyAuthentication", "performPasskeyRegistration":
+                // TODO: consumers resolving this plugin via Swift Package Manager
+                // (ios/thunderid_flutter/Package.swift, pinned to the `ios-sdks` `main` branch)
+                // will pick up `ThunderID.PasskeyAuthSession` automatically once it lands
+                // upstream. Consumers still on the CocoaPods fallback
+                // (ios/thunderid_flutter.podspec) remain blocked until `ThunderID` cuts a
+                // tagged pod release containing it. Until one of those lands, surface a typed
+                // error instead of hanging or silently no-oping.
+                result(FlutterError(
+                    code: "PASSKEY_NOT_SUPPORTED",
+                    message: "Passkey ceremonies are not yet available on iOS via this Flutter plugin",
+                    details: nil
+                ))
+
             case "buildSignInUrl":
                 let url = try client.buildSignInURL()
                 result(url.absoluteString)

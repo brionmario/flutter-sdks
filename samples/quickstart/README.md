@@ -59,6 +59,52 @@ The plugin generates the App Attest challenge locally. ThunderID does not yet bi
 a server-issued challenge, so this is sufficient to exercise the flow end to end; move to a
 server-issued challenge once that check lands.
 
+### Passkeys (WebAuthn)
+
+Passkey registration/authentication requires the server's passkey relying party (`rp.id`) to be a
+real HTTPS domain — not `localhost`, `127.0.0.1`, or `10.0.2.2`. Each platform verifies the calling
+app is allowed to use that `rp.id` differently, and this Flutter sample packages both a native iOS
+runner and a native Android app, so both verification mechanisms apply:
+
+**iOS — Associated Domains entitlement.** `ASAuthorizationPlatformPublicKeyCredentialProvider`
+requires the app to declare a `webcredentials:<domain>` Associated Domain, backed by a hosted
+`apple-app-site-association` file. Without this, `ASAuthorizationController` fails immediately with
+`Error Domain=com.apple.AuthenticationServices.AuthorizationError Code=1004`.
+
+This sample ships `ios/Runner/Runner.entitlements` with a placeholder
+`webcredentials:your-thunderid-domain.example` entry, wired into `ios/Runner.xcodeproj` via
+`CODE_SIGN_ENTITLEMENTS`. To exercise passkeys end-to-end:
+
+1. Replace the placeholder domain in `ios/Runner/Runner.entitlements` with the domain your
+   ThunderID server is actually reachable at (must serve valid HTTPS — self-signed certs and
+   `localhost` will not work).
+2. Host an `apple-app-site-association` file at
+   `https://<that-domain>/.well-known/apple-app-site-association` declaring this app's Team ID and
+   bundle identifier (`dev.thunderid.Quickstart`) under `webcredentials.apps`.
+3. Make sure the server's passkey `rp.id` matches that same domain.
+4. Set a `DEVELOPMENT_TEAM` and enable the **Associated Domains** capability for the Runner target
+   in Xcode (Signing & Capabilities) so the entitlement is actually applied to the build.
+
+**Android — Digital Asset Links.** Android's Credential Manager requires the domain to serve
+`https://<domain>/.well-known/assetlinks.json` declaring this app's package name and signing
+certificate SHA-256 fingerprint(s) under `delegate_permission/common.get_login_creds`. Without this,
+Credential Manager rejects the ceremony.
+
+This sample ships `assetlinks.json.example` with a placeholder `sha256_cert_fingerprints` entry for
+the app's `applicationId` (`dev.thunderid.flutter_quickstart`). To exercise passkeys end-to-end:
+
+1. Rename/copy `assetlinks.json.example` to `assetlinks.json` and replace
+   `<YOUR_APP_SIGNING_CERT_SHA256_FINGERPRINT>` with the SHA-256 fingerprint of the signing
+   certificate for the build you'll test with (get it via
+   `keytool -list -v -keystore <your.keystore> -alias <alias>` or a Gradle `signingReport`).
+2. Host that file at `https://<your-thunderid-domain>/.well-known/assetlinks.json` (same domain as
+   the iOS setup above, and matching the server's `rp.id`).
+3. No `AndroidManifest.xml` change is required — Digital Asset Links verification is purely a
+   server-hosted file requirement, no App Links intent filter needed.
+
+Exposing a local ThunderID instance under a real, HTTPS-reachable domain (e.g. via a tunnel) is left
+to you — this sample only wires up the entitlement/template file/documentation on each platform, not
+the tunnel itself.
 
 ## Run
 
