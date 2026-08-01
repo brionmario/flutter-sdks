@@ -21,6 +21,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:thunderid_flutter/thunderid_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -109,6 +110,39 @@ String _greeting(String name) {
   return 'Good $timeOfDay, $name.';
 }
 
+const List<String> _kWeekdayNames = <String>[
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+const List<String> _kMonthNames = <String>[
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/// Formats today's date as e.g. "FRIDAY, JULY 31".
+String _dateLabel() {
+  final now = DateTime.now();
+  final weekday = _kWeekdayNames[now.weekday - 1];
+  final month = _kMonthNames[now.month - 1];
+  return '$weekday, $month ${now.day}'.toUpperCase();
+}
+
 class _HomeTabScreen extends StatefulWidget {
   final void Function(String) onNavigate;
   const _HomeTabScreen({required this.onNavigate});
@@ -139,26 +173,18 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
     super.dispose();
   }
 
-  static String _initials(String? displayName) {
-    if (displayName == null || displayName.isEmpty) return '?';
-    final parts = displayName.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return displayName[0].toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     final thunder = ThunderIDProvider.of(context);
     final user = thunder.user;
-    final displayName = user?.displayName;
-    final greetingName =
-        (displayName == null || displayName.isEmpty) ? 'Guest' : displayName;
-    final email = user?.email ?? '';
-    final initials = _initials(displayName);
-
     final claims = user?.claims;
+    final givenName = claims?['given_name'] as String?;
+    final emailPrefix = user?.email?.split('@').first;
+    final greetingName = (givenName != null && givenName.isNotEmpty)
+        ? givenName
+        : (emailPrefix != null && emailPrefix.isNotEmpty)
+            ? emailPrefix
+            : 'there';
     final authTime = _epochSecondsFromClaim(claims?['auth_time']);
     final exp = _epochSecondsFromClaim(claims?['exp']);
     final secondsLeft = exp != null ? exp - _nowSeconds : null;
@@ -171,32 +197,57 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── User identity ──────────────────────────────────────────────
+            // ── Hero: avatar + (date/session row, greeting row) ─────────────
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: const BoxDecoration(
-                    color: _kBlue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                ),
+                const UserAvatar(size: 52),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Text(
+                            _dateLabel(),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _kMuted,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 3,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: _kMuted.withValues(alpha: 0.4),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: _kGreen,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Session active',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _kGreen,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       Text(
                         _greeting(greetingName),
                         style: const TextStyle(
@@ -205,37 +256,7 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
                           color: _kTextDark,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        email,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: _kMuted,
-                        ),
-                      ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: _kGreen,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Session active',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _kGreen,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -277,23 +298,34 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
 
             const _StepRow(
               number: '01',
-              title: 'Secure your API',
-              subtitle: 'Add token validation to your backend.',
+              title: 'Explore use cases',
+              subtitle:
+                  'See what you can build — auth flows for web, mobile, APIs, and agents.',
+              href: 'https://thunderid.dev/docs/next/use-cases/overview/',
             ),
             const _StepRow(
               number: '02',
-              title: 'Add social login',
-              subtitle: 'GitHub, Google, and OIDC providers.',
+              title: 'Learn about flows',
+              subtitle:
+                  'Understand how authorization code, PKCE, client credentials, and '
+                  'device flows work.',
+              href:
+                  'https://thunderid.dev/docs/next/guides/flows/what-are-flows/',
             ),
             const _StepRow(
               number: '03',
-              title: 'Enable MFA',
-              subtitle: 'TOTP and passkey support.',
+              title: 'Style your experience',
+              subtitle:
+                  'Customize the login UI, branding, and email templates to match '
+                  'your product.',
+              href: 'https://thunderid.dev/docs/next/guides/design/overview/',
             ),
             const _StepRow(
               number: '04',
-              title: 'Explore the SDK',
-              subtitle: 'API reference and guides.',
+              title: 'Explore SDK APIs',
+              subtitle:
+                  'Full Flutter SDK reference — widgets, hooks, and configuration options.',
+              href: 'https://thunderid.dev/docs/next/sdks/flutter/overview/',
             ),
 
             const SizedBox(height: 8),
@@ -310,12 +342,6 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
               icon: Icons.key_outlined,
               label: 'Token debug',
               onTap: () => widget.onNavigate('token'),
-            ),
-            const Divider(),
-            _ActionRow(
-              icon: Icons.settings_outlined,
-              label: 'Settings',
-              onTap: () {},
             ),
             const Divider(),
 
@@ -393,53 +419,64 @@ class _StepRow extends StatelessWidget {
   final String number;
   final String title;
   final String subtitle;
+  final String href;
   const _StepRow({
     required this.number,
     required this.title,
     required this.subtitle,
+    required this.href,
   });
+
+  Future<void> _open() async {
+    final uri = Uri.tryParse(href);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         const Divider(),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Text(
-                number,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: _kBlue,
-                  fontFamily: 'monospace',
+        InkWell(
+          onTap: _open,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Text(
+                  number,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: _kBlue,
+                    fontFamily: 'monospace',
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: _kTextDark,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextDark,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(fontSize: 13, color: _kMuted),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(fontSize: 13, color: _kMuted),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: _kMuted, size: 20),
-            ],
+                const Icon(Icons.chevron_right, color: _kMuted, size: 20),
+              ],
+            ),
           ),
         ),
       ],
@@ -502,16 +539,6 @@ class _ProfileScreen extends StatelessWidget {
     final userId = user?.sub ?? '—';
     final username = user?.username ?? '—';
 
-    final initials = displayName.isNotEmpty
-        ? displayName
-            .trim()
-            .split(RegExp(r'\s+'))
-            .take(2)
-            .map((p) => p[0])
-            .join()
-            .toUpperCase()
-        : '?';
-
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -545,24 +572,7 @@ class _ProfileScreen extends StatelessWidget {
               Center(
                 child: Column(
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: const BoxDecoration(
-                        color: _kBlue,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                      ),
-                    ),
+                    const UserAvatar(size: 56),
                     const SizedBox(height: 12),
                     Text(
                       displayName,
@@ -577,23 +587,6 @@ class _ProfileScreen extends StatelessWidget {
                       email,
                       style: const TextStyle(fontSize: 13, color: _kMuted),
                     ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _kGreen.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Email verified',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _kGreen,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -603,9 +596,26 @@ class _ProfileScreen extends StatelessWidget {
               // ── Account details section ──────────────────────────────────
               const _SectionHeader(label: 'ACCOUNT DETAILS'),
               const SizedBox(height: 8),
-              _InfoRow(label: 'USER ID', value: userId, monospace: true),
-              const Divider(),
-              _InfoRow(label: 'USERNAME', value: username),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _kMuted.withValues(alpha: 0.2),
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    _InfoRow(
+                      label: 'USER ID',
+                      value: userId,
+                      monospace: true,
+                    ),
+                    const Divider(height: 1),
+                    _InfoRow(label: 'USERNAME', value: username),
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 32),
             ],

@@ -30,7 +30,7 @@ class SvgPathSpec {
   /// relative) used by the Google/GitHub logos ported from the web SDK's icon adapters.
   final String pathData;
 
-  /// Fill color for this path.
+  /// Fill or stroke color for this path (see [strokeWidth]).
   final Color color;
 
   /// Translation applied in the SVG's own coordinate space, matching a
@@ -38,10 +38,16 @@ class SvgPathSpec {
   /// four-color glyph groups).
   final Offset translate;
 
+  /// When set, the path is stroked (round cap/join) with this width instead of filled —
+  /// for line-art icons ported from `fill="none" stroke="currentColor"` SVG sources (e.g. the
+  /// passkey fingerprint glyph). Null (the default) fills the path, matching brand logo glyphs.
+  final double? strokeWidth;
+
   const SvgPathSpec({
     required this.pathData,
     required this.color,
     this.translate = Offset.zero,
+    this.strokeWidth,
   });
 }
 
@@ -85,7 +91,16 @@ class _SvgPathPainter extends CustomPainter {
             (point.dy + spec.translate.dy) * scaleY,
           );
       final path = _SvgPathParser(spec.pathData).parseToPath(map);
-      canvas.drawPath(path, Paint()..color = spec.color);
+      final strokeWidth = spec.strokeWidth;
+      final paint = strokeWidth != null
+          ? (Paint()
+            ..color = spec.color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strokeWidth * ((scaleX + scaleY) / 2)
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round)
+          : (Paint()..color = spec.color);
+      canvas.drawPath(path, paint);
     }
   }
 

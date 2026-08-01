@@ -28,10 +28,7 @@ void main() async {
     ThunderIDProvider(
       config: ThunderIDConfig(
         baseUrl: dotenv.env['THUNDERID_BASE_URL']!,
-        clientId: dotenv.env['THUNDERID_CLIENT_ID'],
         applicationId: dotenv.env['THUNDERID_APP_ID'],
-        afterSignInUrl: dotenv.env['THUNDERID_AFTER_SIGN_IN_URL'],
-        afterSignOutUrl: dotenv.env['THUNDERID_AFTER_SIGN_OUT_URL'],
         scopes: const ['openid', 'profile', 'email'],
       ),
       child: const QuickstartApp(),

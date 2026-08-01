@@ -28,6 +28,7 @@ import 'adapters/google_button.dart';
 import 'adapters/linkedin_button.dart';
 import 'adapters/microsoft_button.dart';
 import 'adapters/outlined_trigger_button.dart';
+import 'adapters/passkey_button.dart';
 import 'thunderid_provider.dart';
 
 /// Internal widget used by [ThunderIDSignIn] and [ThunderIDSignUp] to render a
@@ -37,6 +38,12 @@ class FlowForm extends StatefulWidget {
   final String applicationId;
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
+  /// The actionId currently being submitted, if known. When set, only the
+  /// button matching this id shows a spinner while `isLoading` is true —
+  /// the rest are disabled but keep their label instead of all spinning
+  /// together. Null falls back to spinning every button (e.g. builders that
+  /// don't track which action is in flight).
+  final String? loadingActionId;
   final String? error;
   final Future<void> Function(String actionId, Map<String, String> inputs)
       submit;
@@ -49,6 +56,7 @@ class FlowForm extends StatefulWidget {
     required this.isLoading,
     required this.error,
     required this.submit,
+    this.loadingActionId,
     this.submitLabel = 'Submit',
   });
 
@@ -118,42 +126,40 @@ class _FlowFormState extends State<FlowForm> {
     final inputs = _readList(data?['inputs']);
     final actions = _readList(data?['actions']);
 
+    // An error response carries no UI of its own — the previous step's inputs/actions are
+    // stale once the server has rejected the last submission, so show only the error instead
+    // of a form the user can no longer meaningfully interact with.
+    final hasError = widget.error != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (components.isNotEmpty) ...[
-          ...components.map((c) => _renderComponent(context, c, actions)),
-          ..._missingInputWidgets(context, inputs, components),
-          if (!_hasActionComponent(components) && actions.isNotEmpty)
-            ...actions.map((a) => _renderAction(context, a, actions)),
-        ] else ...[
-          ...inputs.map(
-            (i) => _renderField(
-              context,
-              {'ref': _inputRef(i), 'label': '', 'type': i['type']},
-              _str(i['type']),
+        if (!hasError) ...[
+          if (components.isNotEmpty) ...[
+            ...components.map((c) => _renderComponent(context, c, actions)),
+            ..._missingInputWidgets(context, inputs, components),
+            if (!_hasActionComponent(components) && actions.isNotEmpty)
+              ...actions.map((a) => _renderAction(context, a, actions)),
+          ] else ...[
+            ...inputs.map(
+              (i) => _renderField(
+                context,
+                {'ref': _inputRef(i), 'label': '', 'type': i['type']},
+                _str(i['type']),
+              ),
             ),
-          ),
-          if (actions.isNotEmpty)
-            ...actions.map((a) => _renderAction(context, a, actions))
-          else
-            _renderAction(
-              context,
-              {'label': widget.submitLabel, 'id': 'init'},
-              const [],
-            ),
+            if (actions.isNotEmpty)
+              ...actions.map((a) => _renderAction(context, a, actions))
+            else
+              _renderAction(
+                context,
+                {'label': widget.submitLabel, 'id': 'init'},
+                const [],
+              ),
+          ],
         ],
-        if (widget.error != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            widget.error!,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.error,
-              fontSize: 13,
-            ),
-          ),
-        ],
+        if (widget.error != null) _ErrorBanner(message: widget.error!),
       ],
     );
   }
@@ -209,11 +215,11 @@ class _FlowFormState extends State<FlowForm> {
   ) {
     switch (_effectiveCategory(comp)) {
       case 'DISPLAY':
-        return _renderDisplay(context, comp);
+        return _renderDisplay(context, comp, actions);
       case 'DIVIDER':
         return _renderDivider(context, comp);
       case 'RICH_TEXT':
-        return _renderRichText(context, comp);
+        return _renderRichText(context, comp, actions);
       case 'BLOCK':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -240,7 +246,11 @@ class _FlowFormState extends State<FlowForm> {
     }
   }
 
-  Widget _renderDisplay(BuildContext context, Map<String, dynamic> comp) {
+  Widget _renderDisplay(
+    BuildContext context,
+    Map<String, dynamic> comp,
+    List<Map<String, dynamic>> actions,
+  ) {
     final type = _str(comp['type']);
     // The real backend sends an explicit `category: "DISPLAY"` on DIVIDER
     // and RICH_TEXT components too, so `_effectiveCategory` short-circuits
@@ -250,7 +260,7 @@ class _FlowFormState extends State<FlowForm> {
       return _renderDivider(context, comp);
     }
     if (type == 'RICH_TEXT') {
-      return _renderRichText(context, comp);
+      return _renderRichText(context, comp, actions);
     }
     if (type == 'TEXT') {
       final label = _resolve(comp['label']);
@@ -297,14 +307,20 @@ class _FlowFormState extends State<FlowForm> {
     );
   }
 
-  Widget _renderRichText(BuildContext context, Map<String, dynamic> comp) {
+  Widget _renderRichText(
+    BuildContext context,
+    Map<String, dynamic> comp,
+    List<Map<String, dynamic>> actions,
+  ) {
     final html = _resolve(comp['label']);
     if (html.isEmpty) return const SizedBox.shrink();
 
-    final linkPattern = RegExp(
-      r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
-      dotAll: true,
-    );
+    // Anchors carry either an `href` (an external URL to open) or a
+    // `data-action-ref` (a sentinel identifying a flow action to submit in-app,
+    // matching the web SDK's sentinel-anchor contract). There's no DOM/browser
+    // navigation on mobile, so `data-action-ref` always wins when present.
+    final linkPattern = RegExp(r'<a\b([^>]*)>(.*?)</a>', dotAll: true);
+    final attrPattern = RegExp(r'([\w-]+)\s*=\s*"([^"]*)"');
     final spans = <InlineSpan>[];
     var cursor = 0;
     for (final match in linkPattern.allMatches(html)) {
@@ -312,9 +328,17 @@ class _FlowFormState extends State<FlowForm> {
         final plain = _stripTags(html.substring(cursor, match.start));
         if (plain.trim().isNotEmpty) spans.add(TextSpan(text: plain));
       }
-      final href = match.group(1) ?? '';
+      final attrs = <String, String>{};
+      for (final attrMatch in attrPattern.allMatches(match.group(1) ?? '')) {
+        attrs[attrMatch.group(1)!.toLowerCase()] = attrMatch.group(2) ?? '';
+      }
+      final actionRef = attrs['data-action-ref'] ?? '';
+      final href = attrs['href'] ?? '';
       final linkText = _stripTags(match.group(2) ?? '').trim();
-      final recognizer = TapGestureRecognizer()..onTap = () => _openLink(href);
+      final onTap = actionRef.isNotEmpty
+          ? () => _dispatchRichTextAction(actionRef, actions)
+          : () => _openLink(href);
+      final recognizer = TapGestureRecognizer()..onTap = onTap;
       _linkRecognizers.add(recognizer);
       spans.add(
         TextSpan(
@@ -335,7 +359,7 @@ class _FlowFormState extends State<FlowForm> {
     if (spans.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(top: 12, bottom: 16),
       child: Text.rich(
         TextSpan(
           style: Theme.of(context).textTheme.bodyMedium,
@@ -343,6 +367,15 @@ class _FlowFormState extends State<FlowForm> {
         ),
       ),
     );
+  }
+
+  void _dispatchRichTextAction(
+    String actionRef,
+    List<Map<String, dynamic>> actions,
+  ) {
+    if (widget.isLoading) return;
+    final actionId = _findActionId(actionRef, actions);
+    widget.submit(actionId, _controllers.map((k, v) => MapEntry(k, v.text)));
   }
 
   String _stripTags(String value) => value.replaceAll(RegExp(r'<[^>]+>'), '');
@@ -400,6 +433,14 @@ class _FlowFormState extends State<FlowForm> {
       fallback: _str(_actionForId(metaActionId, actions)?['eventType']),
     );
 
+    // Only the button whose actionId matches the in-flight submission shows a
+    // spinner; the rest stay disabled (to prevent overlapping submits) but
+    // keep their label instead of all spinning together.
+    final isActiveAction =
+        widget.loadingActionId == null || widget.loadingActionId == actionId;
+    final isSpinning = widget.isLoading && isActiveAction;
+    final isBlocked = widget.isLoading && !isActiveAction;
+
     if (eventType.toUpperCase() == 'TRIGGER') {
       void onPressed() => widget.submit(
             actionId,
@@ -410,41 +451,55 @@ class _FlowFormState extends State<FlowForm> {
       if (hint.contains('google')) {
         return GoogleButton(
           label: label,
-          isLoading: widget.isLoading,
+          isLoading: isSpinning,
+          disabled: isBlocked,
           onPressed: onPressed,
         );
       }
       if (hint.contains('github')) {
         return GitHubButton(
           label: label,
-          isLoading: widget.isLoading,
+          isLoading: isSpinning,
+          disabled: isBlocked,
           onPressed: onPressed,
         );
       }
       if (hint.contains('facebook')) {
         return FacebookButton(
           label: label,
-          isLoading: widget.isLoading,
+          isLoading: isSpinning,
+          disabled: isBlocked,
           onPressed: onPressed,
         );
       }
       if (hint.contains('microsoft')) {
         return MicrosoftButton(
           label: label,
-          isLoading: widget.isLoading,
+          isLoading: isSpinning,
+          disabled: isBlocked,
           onPressed: onPressed,
         );
       }
       if (hint.contains('linkedin')) {
         return LinkedInButton(
           label: label,
-          isLoading: widget.isLoading,
+          isLoading: isSpinning,
+          disabled: isBlocked,
+          onPressed: onPressed,
+        );
+      }
+      if (hint.contains('passkey')) {
+        return PasskeyButton(
+          label: label,
+          isLoading: isSpinning,
+          disabled: isBlocked,
           onPressed: onPressed,
         );
       }
       return OutlinedTriggerButton(
         label: label,
-        isLoading: widget.isLoading,
+        isLoading: isSpinning,
+        disabled: isBlocked,
         onPressed: onPressed,
       );
     }
@@ -459,7 +514,7 @@ class _FlowFormState extends State<FlowForm> {
                   actionId,
                   _controllers.map((k, v) => MapEntry(k, v.text)),
                 ),
-        child: widget.isLoading
+        child: isSpinning
             ? const SizedBox(
                 height: 20,
                 width: 20,
@@ -586,5 +641,37 @@ class _FlowFormState extends State<FlowForm> {
     if (s.isEmpty) return fallback;
     final resolved = _resolver?.resolve(s) ?? s;
     return resolved.isEmpty ? fallback : resolved;
+  }
+}
+
+/// Styled error banner shown in place of the (now stale) form after a flow step fails.
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: colorScheme.onErrorContainer, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colorScheme.onErrorContainer, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -42,6 +42,7 @@ class SignUp extends StatelessWidget {
         applicationId: applicationId,
         currentStep: flowState.currentStep,
         isLoading: flowState.isLoading,
+        loadingActionId: flowState.loadingActionId,
         error: flowState.error,
         submit: flowState.submit,
         submitLabel: state.i18n.resolve('signUp.submit'),
@@ -53,6 +54,7 @@ class SignUp extends StatelessWidget {
 class ThunderIDSignUpState {
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
+  final String? loadingActionId;
   final String? error;
   final Future<void> Function(String actionId, Map<String, String> inputs) submit;
 
@@ -61,6 +63,7 @@ class ThunderIDSignUpState {
     required this.isLoading,
     required this.error,
     required this.submit,
+    this.loadingActionId,
   });
 }
 
@@ -86,6 +89,7 @@ class BaseSignUp extends StatefulWidget {
 class _BaseSignUpState extends State<BaseSignUp> {
   EmbeddedFlowResponse? _currentStep;
   bool _isLoading = true;
+  String? _loadingActionId;
   String? _error;
 
   @override
@@ -116,7 +120,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
   Future<void> _submit(String actionId, Map<String, String> inputs) async {
     final flowId = _currentStep?.flowId;
     if (flowId == null) return;
-    setState(() => _isLoading = true);
+    setState(() { _isLoading = true; _loadingActionId = actionId; });
     try {
       final state = ThunderIDProvider.of(context);
       final response = await state.client.signUp(
@@ -159,7 +163,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
       if (mounted) setState(() => _error = e.toString());
       widget.onError?.call();
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() { _isLoading = false; _loadingActionId = null; });
     }
   }
 
@@ -169,6 +173,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
         ThunderIDSignUpState(
           currentStep: _currentStep,
           isLoading: _isLoading,
+          loadingActionId: _loadingActionId,
           error: _error,
           submit: _submit,
         ),

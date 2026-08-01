@@ -291,5 +291,139 @@ void main() {
       expect(find.byType(GoogleButton), findsOneWidget);
       expect(find.byType(GitHubButton), findsOneWidget);
     });
+
+    testWidgets(
+        'tapping a data-action-ref sign-up link submits the matching action '
+        'instead of trying to navigate the href="#" placeholder',
+        (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_sdkChannel, (call) async {
+        switch (call.method) {
+          case 'initialize':
+            return true;
+          case 'isSignedIn':
+            return false;
+          case 'getFlowMeta':
+            return _flowMeta;
+          default:
+            return null;
+        }
+      });
+
+      final submittedActionIds = <String>[];
+      final sentinelStep = EmbeddedFlowResponse(
+        flowStatus: FlowStatus.promptOnly,
+        data: <String, dynamic>{
+          'inputs': _stepData['inputs'],
+          'actions': [
+            {'ref': 'action_001', 'nextNode': 'credentials_auth'},
+            {'ref': 'action_signup', 'nextNode': 'call_registration'},
+          ],
+          'meta': <String, dynamic>{
+            'components': [
+              {
+                'category': 'DISPLAY',
+                'id': 'rich_text_signup',
+                'label':
+                    '<p data-component-ref="self-sign-up-link"><span class="rich-text-pre-wrap">Don\'t have an account? </span><a href="#" data-action-ref="action_signup" class="rich-text-link"><span class="rich-text-pre-wrap">Sign up</span></a></p>',
+                'resourceType': 'ELEMENT',
+                'type': 'RICH_TEXT',
+              },
+            ],
+          },
+        },
+        challengeToken: 'token',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ThunderIDProvider(
+              config: _config,
+              child: FlowForm(
+                applicationId: 'app-1',
+                currentStep: sentinelStep,
+                isLoading: false,
+                error: null,
+                submit: (actionId, inputs) async {
+                  submittedActionIds.add(actionId);
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final richText = tester.widget<Text>(
+        find.byWidgetPredicate((widget) {
+          if (widget is! Text) return false;
+          final span = widget.textSpan;
+          if (span == null) return false;
+          var hasLink = false;
+          span.visitChildren((child) {
+            if (child is TextSpan &&
+                child.recognizer is TapGestureRecognizer) {
+              hasLink = true;
+            }
+            return true;
+          });
+          return hasLink;
+        }),
+      );
+      TapGestureRecognizer? linkRecognizer;
+      richText.textSpan!.visitChildren((child) {
+        if (child is TextSpan && child.recognizer is TapGestureRecognizer) {
+          linkRecognizer = child.recognizer as TapGestureRecognizer;
+        }
+        return true;
+      });
+      expect(linkRecognizer, isNotNull);
+      linkRecognizer!.onTap!();
+      await tester.pumpAndSettle();
+
+      expect(submittedActionIds, ['action_signup']);
+    });
+
+    testWidgets(
+        'shows only the error banner and hides the stale prior-step form '
+        'when an error is present', (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_sdkChannel, (call) async {
+        switch (call.method) {
+          case 'initialize':
+            return true;
+          case 'isSignedIn':
+            return false;
+          case 'getFlowMeta':
+            return _flowMeta;
+          default:
+            return null;
+        }
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ThunderIDProvider(
+              config: _config,
+              child: FlowForm(
+                applicationId: 'app-1',
+                currentStep: _step,
+                isLoading: false,
+                error: '[INVALID_INPUT] Bad request',
+                submit: (actionId, inputs) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('[INVALID_INPUT] Bad request'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byType(GoogleButton), findsNothing);
+      expect(find.byType(GitHubButton), findsNothing);
+    });
   });
 }

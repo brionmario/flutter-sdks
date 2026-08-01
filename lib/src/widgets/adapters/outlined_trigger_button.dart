@@ -25,6 +25,9 @@ import 'package:flutter/material.dart';
 class OutlinedTriggerButton extends StatelessWidget {
   final String label;
   final bool isLoading;
+  /// Disables the button without showing a spinner, e.g. while a sibling
+  /// button's submission is in flight.
+  final bool disabled;
   final VoidCallback onPressed;
   final Widget? icon;
 
@@ -33,6 +36,7 @@ class OutlinedTriggerButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.disabled = false,
     this.icon,
   });
 
@@ -47,7 +51,7 @@ class OutlinedTriggerButton extends StatelessWidget {
         child: SizedBox(
           height: 48,
           child: OutlinedButton(
-            onPressed: isLoading ? null : onPressed,
+            onPressed: (isLoading || disabled) ? null : onPressed,
             style: OutlinedButton.styleFrom(
               side: BorderSide(
                 color: colorScheme.outline.withValues(alpha: 0.4),
