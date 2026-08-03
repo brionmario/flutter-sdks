@@ -59,7 +59,6 @@ The plugin generates the App Attest challenge locally. ThunderID does not yet bi
 a server-issued challenge, so this is sufficient to exercise the flow end to end; move to a
 server-issued challenge once that check lands.
 
----
 
 ## Run
 
