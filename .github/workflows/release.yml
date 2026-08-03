@@ -61,6 +61,14 @@ jobs:
       - name: 📦 Get Dependencies
         run: flutter pub get
 
+      - name: 📦 Get Sample Dependencies
+        working-directory: samples/quickstart
+        run: flutter pub get
+
+      - name: 🔐 Create Sample .env
+        working-directory: samples/quickstart
+        run: cp .env.example .env
+
       - name: 🔍 Run Flutter Analyze
         run: flutter analyze
 
