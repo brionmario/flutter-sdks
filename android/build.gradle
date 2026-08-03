@@ -62,11 +62,7 @@ def flutterEngineVersion = new File(flutterSdkPath(), 'bin/cache/engine.stamp').
 
 dependencies {
     compileOnly "io.flutter:flutter_embedding_debug:1.0.0-$flutterEngineVersion"
-    // Pinned to the v0.2.0 release tag. The tag's commit is fixed, and unlike an arbitrary commit
-    // SHA, its JitPack build is already warmed (it's the officially published version), avoiding
-    // the cold-start build timeout/429 that an unbuilt SHA reference hits on first resolution.
-    implementation 'com.github.thunder-id:android-sdks:v0.2.0'
-    // Google Play Integrity — used by PlayIntegrityTokenProvider for platform attestation.
+    implementation 'com.github.thunder-id:android-sdks:v0.3.1'
     implementation 'com.google.android.play:integrity:1.6.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }

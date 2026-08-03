@@ -7,6 +7,7 @@ import ThunderID
 final class ThunderIDMethodHandler {
     private let client = ThunderIDClient()
     private let federatedAuthSession = FederatedAuthSession()
+    private let passkeyAuthSession = PasskeyAuthSession()
 
     func handle(method: String, args: [String: Any], result: @escaping FlutterResult) async {
         do {
@@ -33,6 +34,16 @@ final class ThunderIDMethodHandler {
 
             case "continueFederatedAuth":
                 await handleContinueFederatedAuth(args, result: result)
+
+            case "performPasskeyAuthentication":
+                let requestOptionsJson = args["requestOptionsJson"] as? String ?? ""
+                let inputs = try await passkeyAuthSession.authenticate(requestOptionsJson: requestOptionsJson)
+                result(inputs)
+
+            case "performPasskeyRegistration":
+                let creationOptionsJson = args["creationOptionsJson"] as? String ?? ""
+                let inputs = try await passkeyAuthSession.register(creationOptionsJson: creationOptionsJson)
+                result(inputs)
 
             case "buildSignInUrl":
                 let url = try client.buildSignInURL()

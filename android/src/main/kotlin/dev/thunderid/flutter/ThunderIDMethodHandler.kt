@@ -5,6 +5,7 @@ import android.content.Context
 import io.flutter.plugin.common.MethodChannel.Result
 import dev.thunderid.android.*
 import dev.thunderid.android.auth.FederatedAuthSession
+import dev.thunderid.android.auth.PasskeyClient
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -13,6 +14,7 @@ import kotlinx.coroutines.CancellationException
  */
 class ThunderIDMethodHandler(private val context: Context) {
     private val client = ThunderIDClient()
+    private val passkeyClient = PasskeyClient()
 
     /**
      * Set by [ThunderIDFlutterPlugin] from its `ActivityAware` callbacks. Required for
@@ -64,6 +66,14 @@ class ThunderIDMethodHandler(private val context: Context) {
                     val request = EmbeddedFlowRequestConfig(applicationId = applicationId)
                     val response = client.signIn(payload, request)
                     result.success(encodeFlowResponse(response))
+                }
+                "performPasskeyAuthentication" -> {
+                    val requestOptionsJson = args["requestOptionsJson"] as? String ?: ""
+                    result.success(passkeyClient.authenticate(activity ?: context, requestOptionsJson))
+                }
+                "performPasskeyRegistration" -> {
+                    val creationOptionsJson = args["creationOptionsJson"] as? String ?: ""
+                    result.success(passkeyClient.register(activity ?: context, creationOptionsJson))
                 }
                 "buildSignInUrl" -> {
                     result.success(client.buildSignInUrl())
@@ -232,7 +242,8 @@ class ThunderIDMethodHandler(private val context: Context) {
                 "required" to input.required
             )
         },
-        "meta" to data.meta?.let { encodeFlowMeta(it) }
+        "meta" to data.meta?.let { encodeFlowMeta(it) },
+        "additionalData" to data.additionalData
     )
 
     private fun encodeFlowMeta(meta: FlowMeta) = mapOf(

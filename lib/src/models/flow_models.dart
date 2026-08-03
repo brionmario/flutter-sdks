@@ -95,6 +95,11 @@ class EmbeddedFlowResponse {
     this.challengeToken,
   });
 
+  /// The `data.additionalData` block, if present. Carries the WebAuthn/passkey ceremony
+  /// options (`passkeyChallenge`/`passkeyCreationOptions`, each a JSON-encoded string) that
+  /// drive an automatic passkey resubmit, alongside any other server-provided metadata.
+  Map<String, dynamic>? get additionalData => (data?['additionalData'] as Map?)?.cast<String, dynamic>();
+
   factory EmbeddedFlowResponse.fromMap(Map<dynamic, dynamic> map) {
     final rawStatus = map['flowStatus'] as String? ?? '';
     final normalizedStatus = rawStatus.trim().toUpperCase().split('.').last;

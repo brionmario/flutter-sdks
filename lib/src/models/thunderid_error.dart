@@ -53,7 +53,13 @@ enum ThunderIDErrorCode {
   unknownError,
 
   // Federated / social login (TRIGGER actions)
-  federatedAuthCancelled;
+  federatedAuthCancelled,
+
+  // Passkey / WebAuthn
+  passkeyNotSupported,
+  passkeyCancelled,
+  passkeyNoCredential,
+  passkeyFailed;
 
   static const _codeMap = {
     'SDK_NOT_INITIALIZED': ThunderIDErrorCode.sdkNotInitialized,
@@ -81,6 +87,10 @@ enum ThunderIDErrorCode {
     'SERVER_ERROR': ThunderIDErrorCode.serverError,
     'UNKNOWN_ERROR': ThunderIDErrorCode.unknownError,
     'FEDERATED_AUTH_CANCELLED': ThunderIDErrorCode.federatedAuthCancelled,
+    'PASSKEY_NOT_SUPPORTED': ThunderIDErrorCode.passkeyNotSupported,
+    'PASSKEY_CANCELLED': ThunderIDErrorCode.passkeyCancelled,
+    'PASSKEY_NO_CREDENTIAL': ThunderIDErrorCode.passkeyNoCredential,
+    'PASSKEY_FAILED': ThunderIDErrorCode.passkeyFailed,
   };
 
   static ThunderIDErrorCode fromString(String code) =>
