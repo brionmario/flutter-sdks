@@ -51,6 +51,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+          fetch-depth: 0
 
       - name: 🐦 Set up Flutter
         uses: subosito/flutter-action@4cab68ce0f1c7c924f688bff4792e044f1aeb30c # v2
@@ -89,11 +90,28 @@ jobs:
           sed -i "s/^version: $current/version: $new_version/" pubspec.yaml
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
+      - name: 📝 Update CHANGELOG
+        run: |
+          previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          {
+            echo "## ${{ steps.bump.outputs.version }}"
+            echo
+            if [ -n "$previous_tag" ]; then
+              git log "$previous_tag"..HEAD --no-merges --pretty=format:"- %s"
+            else
+              git log --no-merges --pretty=format:"- %s"
+            fi
+            echo
+            echo
+            [ -f CHANGELOG.md ] && cat CHANGELOG.md
+          } > CHANGELOG.md.new
+          mv CHANGELOG.md.new CHANGELOG.md
+
       - name: 📤 Commit, Tag & Push
         run: |
           git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
           git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
-          git add pubspec.yaml
+          git add pubspec.yaml CHANGELOG.md
           git diff --cached --quiet || git commit -m "[Release] flutter v${{ steps.bump.outputs.version }}"
           for i in $(seq 1 5); do
             git pull --rebase origin ${{ github.ref_name }}
@@ -103,6 +121,9 @@ jobs:
           done
           git tag "v${{ steps.bump.outputs.version }}"
           git push origin "v${{ steps.bump.outputs.version }}"
+
+      - name: 🎯 Set up Dart SDK (provisions pub.dev OIDC credentials)
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
 
       - name: 📦 Publish to pub.dev
         run: flutter pub publish --force
