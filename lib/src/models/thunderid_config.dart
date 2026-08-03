@@ -43,6 +43,14 @@ class ThunderIDConfig {
   final String? applicationId;
   final String? organizationHandle;
 
+  // Platform Attestation
+  /// When true, the native SDK sends a platform attestation token (Apple App Attest /
+  /// Google Play Integrity) on native flow-initiate requests.
+  final bool attestationEnabled;
+
+  /// Google Cloud project number, required by Play Integrity on Android.
+  final int? cloudProjectNumber;
+
   // Token Validation
   final TokenValidationConfig tokenValidation;
 
@@ -67,6 +75,8 @@ class ThunderIDConfig {
     this.signUpOptions = const {},
     this.applicationId,
     this.organizationHandle,
+    this.attestationEnabled = false,
+    this.cloudProjectNumber,
     this.tokenValidation = const TokenValidationConfig(),
     this.preferences,
     this.vendor = defaultVendor,
@@ -85,6 +95,8 @@ class ThunderIDConfig {
         'signUpOptions': signUpOptions,
         if (applicationId != null) 'applicationId': applicationId,
         if (organizationHandle != null) 'organizationHandle': organizationHandle,
+        'attestationEnabled': attestationEnabled,
+        if (cloudProjectNumber != null) 'cloudProjectNumber': cloudProjectNumber,
         'tokenValidation': tokenValidation.toMap(),
         if (preferences != null) 'preferences': preferences!.toMap(),
         'vendor': vendor,

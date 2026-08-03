@@ -194,6 +194,7 @@ final class ThunderIDMethodHandler {
                 clockTolerance: v["clockTolerance"] as? Int ?? 0
             )
         } ?? TokenValidationConfig()
+        let attestationEnabled = args["attestationEnabled"] as? Bool ?? false
         return ThunderIDConfig(
             baseUrl: baseUrl,
             clientId: args["clientId"] as? String,
@@ -201,6 +202,9 @@ final class ThunderIDMethodHandler {
             afterSignInUrl: args["afterSignInUrl"] as? String,
             afterSignOutUrl: args["afterSignOutUrl"] as? String,
             applicationId: args["applicationId"] as? String,
+            attestationEnabled: attestationEnabled,
+            attestationTokenProvider: attestationEnabled
+                ? { try await AppAttestTokenProvider().requestToken() } : nil,
             tokenValidation: validation,
             vendor: args["vendor"] as? String ?? VendorConstants.vendorPrefix
         )

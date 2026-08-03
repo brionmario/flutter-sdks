@@ -62,13 +62,11 @@ def flutterEngineVersion = new File(flutterSdkPath(), 'bin/cache/engine.stamp').
 
 dependencies {
     compileOnly "io.flutter:flutter_embedding_debug:1.0.0-$flutterEngineVersion"
-    // Pinned to the merge commit of https://github.com/thunder-id/android-sdks/pull/12 (fixed a
-    // `publishing` block that never attached the compiled AAR to its Maven publication, which had
-    // made every ref/commit/tag resolve to an empty POM shell via JitPack). Pinned to a commit
-    // (not "main-SNAPSHOT"/a branch) so JitPack's build cache is permanent and CI doesn't hit the
-    // branch-snapshot cold-start 404 on every new push. Uses the full 40-char SHA — JitPack's
-    // short-SHA cache entry for this commit got stuck on a transient build infra error, so the
-    // full SHA is used here as a distinct, successfully-built cache key.
-    implementation 'com.github.thunder-id:android-sdks:b069ba42c8685a578506c4162b19716378659481'
+    // Pinned to the v0.2.0 release tag. The tag's commit is fixed, and unlike an arbitrary commit
+    // SHA, its JitPack build is already warmed (it's the officially published version), avoiding
+    // the cold-start build timeout/429 that an unbuilt SHA reference hits on first resolution.
+    implementation 'com.github.thunder-id:android-sdks:v0.2.0'
+    // Google Play Integrity — used by PlayIntegrityTokenProvider for platform attestation.
+    implementation 'com.google.android.play:integrity:1.6.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
