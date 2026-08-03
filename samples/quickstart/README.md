@@ -39,7 +39,7 @@ flutter pub get
 
 💡 `.env` is gitignored. Never commit real credentials.
 
-### Platform attestation (optional)
+### Attestation via Google Play Integrity / Apple App Attest (optional)
 
 Set `THUNDERID_ATTESTATION_ENABLED=true` to send a platform attestation token on native
 sign-in/sign-up. The token is minted natively by the plugin — Apple App Attest on iOS,
