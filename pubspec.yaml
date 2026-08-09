@@ -33,3 +33,4 @@ flutter:
   assets:
     - assets/logo-icons/anonymous/
     - assets/logo-icons/entity/
+    - assets/provider-icons/
