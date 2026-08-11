@@ -86,6 +86,8 @@ jobs:
           esac
           new_version="$major.$minor.$patch"
           sed -i "s/^version: $current/version: $new_version/" pubspec.yaml
+          sed -i "s/s.version          = '.*'/s.version          = '$new_version'/" ios/thunderid_flutter.podspec
+          sed -i "s/^version '.*'/version '$new_version'/" android/build.gradle
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
       - name: 📝 Update CHANGELOG
@@ -109,7 +111,7 @@ jobs:
         run: |
           git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
           git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
-          git add pubspec.yaml CHANGELOG.md
+          git add pubspec.yaml ios/thunderid_flutter.podspec android/build.gradle CHANGELOG.md
           git diff --cached --quiet || git commit -m "[Release] flutter v${{ steps.bump.outputs.version }}"
           for i in $(seq 1 5); do
             git pull --rebase origin ${{ github.ref_name }}
