@@ -1,3 +1,7 @@
+## 0.0.3
+
+- Ignore pub.dev's samples-vs-example warning during publish
+
 ## 0.0.2
 
 - Update google_button.dart
