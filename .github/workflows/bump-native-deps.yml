@@ -1,0 +1,90 @@
+# Keeps the native iOS (`ThunderID` CocoaPod) and Android (`android-sdks` JitPack artifact)
+# dependency versions pinned in this plugin up to date with their upstream releases.
+#
+# GitHub Actions has no native trigger for "a tag was pushed on another repo," so this polls
+# each repo's latest release on a schedule instead. If thunder-id/ios-sdks or
+# thunder-id/android-sdks ever add a `repository_dispatch` call to their own release workflow,
+# this can switch from `schedule` to `on: repository_dispatch` for an instant, push-based bump.
+
+name: 🔄 Bump Native SDK Dependencies
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RELEASE_GIT_USER_NAME: "thunderid[bot]"
+  RELEASE_GIT_USER_EMAIL: "thunderid[bot]@users.noreply.thunderid.dev"
+
+jobs:
+  bump:
+    name: 🔍 Check for Native SDK Updates
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          token: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+
+      - name: 🔎 Resolve Current & Latest Versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+        run: |
+          current_ios=$(grep -oE "ThunderID', '>= [0-9]+\.[0-9]+\.[0-9]+'" ios/thunderid_flutter.podspec | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          latest_ios=$(gh api repos/thunder-id/ios-sdks/releases/latest --jq .tag_name | sed 's/^v//')
+
+          current_android=$(grep -oE "com\.github\.thunder-id:android-sdks:v[0-9]+\.[0-9]+\.[0-9]+" android/build.gradle | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          latest_android=$(gh api repos/thunder-id/android-sdks/releases/latest --jq .tag_name | sed 's/^v//')
+
+          echo "current_ios=$current_ios" >> "$GITHUB_OUTPUT"
+          echo "latest_ios=$latest_ios" >> "$GITHUB_OUTPUT"
+          echo "current_android=$current_android" >> "$GITHUB_OUTPUT"
+          echo "latest_android=$latest_android" >> "$GITHUB_OUTPUT"
+
+      - name: ✏️ Apply Bumps
+        id: apply
+        if: steps.versions.outputs.current_ios != steps.versions.outputs.latest_ios || steps.versions.outputs.current_android != steps.versions.outputs.latest_android
+        run: |
+          changed=()
+
+          if [ "${{ steps.versions.outputs.current_ios }}" != "${{ steps.versions.outputs.latest_ios }}" ]; then
+            sed -i "s/ThunderID', '>= ${{ steps.versions.outputs.current_ios }}'/ThunderID', '>= ${{ steps.versions.outputs.latest_ios }}'/" ios/thunderid_flutter.podspec
+            changed+=("iOS \`ThunderID\` ${{ steps.versions.outputs.current_ios }} → ${{ steps.versions.outputs.latest_ios }}")
+          fi
+
+          if [ "${{ steps.versions.outputs.current_android }}" != "${{ steps.versions.outputs.latest_android }}" ]; then
+            sed -i "s/com.github.thunder-id:android-sdks:v${{ steps.versions.outputs.current_android }}/com.github.thunder-id:android-sdks:v${{ steps.versions.outputs.latest_android }}/" android/build.gradle
+            changed+=("Android \`android-sdks\` ${{ steps.versions.outputs.current_android }} → ${{ steps.versions.outputs.latest_android }}")
+          fi
+
+          {
+            echo "summary<<EOF"
+            printf '%s\n' "${changed[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 📤 Commit & Open PR
+        if: steps.apply.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+        run: |
+          git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
+          git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
+
+          branch="chore/bump-native-deps-$(date +%Y%m%d%H%M%S)"
+          git checkout -b "$branch"
+          git add ios/thunderid_flutter.podspec android/build.gradle
+          git commit -m "Bump native SDK dependencies"
+          git push origin "$branch"
+
+          gh pr create \
+            --title "Bump native SDK dependencies" \
+            --body "${{ steps.apply.outputs.summary }}" \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$branch"
