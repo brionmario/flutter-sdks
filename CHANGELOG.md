@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Update native SDK dependencies and enhance README with installation instructions
+
 ## 0.1.0
 
 
