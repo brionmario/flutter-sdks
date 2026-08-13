@@ -1,3 +1,7 @@
+## 1.0.0
+
+
+
 ## 0.1.2
 
 - Guard against template injection via github.ref_name
