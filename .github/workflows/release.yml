@@ -44,6 +44,8 @@ jobs:
     needs: [validate]
     if: needs.validate.result == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -130,3 +132,43 @@ jobs:
           gh release create "v${VERSION}" \
             --title "ThunderID Flutter SDK v${VERSION}" \
             --generate-notes
+
+  package-quickstart:
+    name: 📦 Package Quickstart Sample
+    needs: [release]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - name: 📥 Checkout Tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: "v${{ needs.release.outputs.version }}"
+          persist-credentials: false
+
+      - name: 📦 Extract Quickstart Sample
+        run: git archive "v${VERSION}" samples/quickstart | tar -x -C /tmp
+
+      - name: 🔗 Detach Sample from Local SDK Source
+        working-directory: /tmp/samples/quickstart
+        run: |
+          perl -0777 -pi -e "s/thunderid_flutter:\n    path: \.\.\/\.\.\n/thunderid_flutter: ^${VERSION}\n/" pubspec.yaml
+          grep -q "thunderid_flutter: \^${VERSION}" pubspec.yaml
+
+      - name: 🚫 Reject Symlinks
+        working-directory: /tmp/samples/quickstart
+        run: |
+          if find . -type l | grep -q .; then
+            echo "Symbolic links found in the sample tree — refusing to archive." >&2
+            find . -type l -exec echo "  {}" \;
+            exit 1
+          fi
+
+      - name: 🗜️ Zip Sample
+        working-directory: /tmp/samples
+        run: mv quickstart flutter-quickstart && zip -r "flutter-quickstart-v${VERSION}.zip" flutter-quickstart
+
+      - name: 🚀 Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+        run: gh release upload "v${VERSION}" "/tmp/samples/flutter-quickstart-v${VERSION}.zip"
