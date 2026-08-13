@@ -1,3 +1,9 @@
+## 0.1.2
+
+- Guard against template injection via github.ref_name
+- Fix release job failing on incidental unstaged tooling changes
+- Zip and attach the Quickstart sample to GitHub releases
+
 ## 0.1.1
 
 - Update native SDK dependencies and enhance README with installation instructions
