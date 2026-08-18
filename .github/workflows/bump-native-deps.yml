@@ -77,14 +77,20 @@ jobs:
           git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
           git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
 
-          branch="chore/bump-native-deps-$(date +%Y%m%d%H%M%S)"
-          git checkout -b "$branch"
+          branch="chore/bump-native-deps"
+          git checkout -B "$branch"
           git add ios/thunderid_flutter.podspec android/build.gradle
           git commit -s -m "Bump native SDK dependencies"
-          git push origin "$branch"
+          git push --force origin "$branch"
 
-          gh pr create \
-            --title "Bump native SDK dependencies" \
-            --body "${{ steps.apply.outputs.summary }}" \
-            --base "${{ github.event.repository.default_branch }}" \
-            --head "$branch"
+          existing_pr=$(gh pr list --head "$branch" --base "${{ github.event.repository.default_branch }}" --state open --json number --jq '.[0].number')
+
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --body "${{ steps.apply.outputs.summary }}"
+          else
+            gh pr create \
+              --title "Bump native SDK dependencies" \
+              --body "${{ steps.apply.outputs.summary }}" \
+              --base "${{ github.event.repository.default_branch }}" \
+              --head "$branch"
+          fi
