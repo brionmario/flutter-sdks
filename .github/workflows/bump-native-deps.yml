@@ -80,7 +80,7 @@ jobs:
           branch="chore/bump-native-deps-$(date +%Y%m%d%H%M%S)"
           git checkout -b "$branch"
           git add ios/thunderid_flutter.podspec android/build.gradle
-          git commit -m "Bump native SDK dependencies"
+          git commit -s -m "Bump native SDK dependencies"
           git push origin "$branch"
 
           gh pr create \
