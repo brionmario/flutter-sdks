@@ -36,14 +36,14 @@ class SignUp extends StatelessWidget {
   }
 }
 
-class ThunderIDSignUpState {
+class SignUpState {
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
   final String? loadingActionId;
   final String? error;
   final Future<void> Function(String actionId, Map<String, String> inputs) submit;
 
-  const ThunderIDSignUpState({
+  const SignUpState({
     required this.currentStep,
     required this.isLoading,
     required this.error,
@@ -57,7 +57,7 @@ class BaseSignUp extends StatefulWidget {
   final String applicationId;
   final VoidCallback? onSuccess;
   final VoidCallback? onError;
-  final Widget Function(BuildContext context, ThunderIDSignUpState state) builder;
+  final Widget Function(BuildContext context, SignUpState state) builder;
 
   const BaseSignUp({
     super.key,
@@ -155,7 +155,7 @@ class _BaseSignUpState extends State<BaseSignUp> {
   @override
   Widget build(BuildContext context) => widget.builder(
         context,
-        ThunderIDSignUpState(
+        SignUpState(
           currentStep: _currentStep,
           isLoading: _isLoading,
           loadingActionId: _loadingActionId,
