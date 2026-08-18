@@ -55,6 +55,7 @@ jobs:
 
           if [ "${{ steps.versions.outputs.current_ios }}" != "${{ steps.versions.outputs.latest_ios }}" ]; then
             sed -i "s/ThunderID', '>= ${{ steps.versions.outputs.current_ios }}'/ThunderID', '>= ${{ steps.versions.outputs.latest_ios }}'/" ios/thunderid_flutter.podspec
+            sed -i "s/upToNextMinor(from: \"${{ steps.versions.outputs.current_ios }}\")/upToNextMinor(from: \"${{ steps.versions.outputs.latest_ios }}\")/" ios/thunderid_flutter/Package.swift
             changed+=("iOS \`ThunderID\` ${{ steps.versions.outputs.current_ios }} → ${{ steps.versions.outputs.latest_ios }}")
           fi
 
@@ -79,7 +80,7 @@ jobs:
 
           branch="chore/bump-native-deps"
           git checkout -B "$branch"
-          git add ios/thunderid_flutter.podspec android/build.gradle
+          git add ios/thunderid_flutter.podspec ios/thunderid_flutter/Package.swift android/build.gradle
           git commit -s -m "Bump native SDK dependencies"
           git push --force origin "$branch"
 
