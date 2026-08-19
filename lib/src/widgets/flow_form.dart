@@ -16,7 +16,7 @@ import 'adapters/outlined_trigger_button.dart';
 import 'adapters/passkey_button.dart';
 import 'thunderid_provider.dart';
 
-/// Internal widget used by [ThunderIDSignIn] and [ThunderIDSignUp] to render a
+/// Internal widget used by [SignIn] and [SignUp] to render a
 /// server-driven flow step. Supports `meta.components` layout when present,
 /// with a plain `inputs`/`actions` fallback.
 class FlowForm extends StatefulWidget {

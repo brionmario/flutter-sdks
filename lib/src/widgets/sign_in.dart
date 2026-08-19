@@ -11,15 +11,15 @@ import '../models/user.dart';
 import 'flow_form.dart';
 import 'thunderid_provider.dart';
 
-/// State exposed to [BaseThunderIDSignIn]'s builder.
-class ThunderIDSignInState {
+/// State exposed to [BaseSignIn]'s builder.
+class SignInState {
   final EmbeddedFlowResponse? currentStep;
   final bool isLoading;
   final String? loadingActionId;
   final String? error;
   final Future<void> Function(String actionId, Map<String, String> inputs) submit;
 
-  const ThunderIDSignInState({
+  const SignInState({
     required this.currentStep,
     required this.isLoading,
     required this.error,
@@ -62,12 +62,12 @@ class SignIn extends StatelessWidget {
   }
 }
 
-/// Unstyled base variant. [builder] receives [ThunderIDSignInState] to render any UI (spec §8.3).
+/// Unstyled base variant. [builder] receives [SignInState] to render any UI (spec §8.3).
 class BaseSignIn extends StatefulWidget {
   final String applicationId;
   final void Function(User user)? onSuccess;
   final VoidCallback? onError;
-  final Widget Function(BuildContext context, ThunderIDSignInState state) builder;
+  final Widget Function(BuildContext context, SignInState state) builder;
 
   const BaseSignIn({
     super.key,
@@ -327,7 +327,7 @@ class _BaseSignInState extends State<BaseSignIn> {
   @override
   Widget build(BuildContext context) => widget.builder(
         context,
-        ThunderIDSignInState(
+        SignInState(
           currentStep: _currentStep,
           isLoading: _isLoading,
           loadingActionId: _loadingActionId,
