@@ -250,10 +250,23 @@ final class ThunderIDMethodHandler {
 
     // MARK: - Encoders
 
+    // Claims are dynamic, so the whole set crosses the channel untouched, with decoded
+    // values unwrapped into the types the platform channel codec can encode.
     private func encodeUser(_ user: User) -> [String: Any?] {
-        ["sub": user.sub, "email": user.email, "displayName": user.displayName,
-         "username": user.username, "profilePicture": user.profilePicture,
-         "isNewUser": user.isNewUser]
+        user.claims.mapValues { unwrapClaim($0.value) }
+    }
+
+    private func unwrapClaim(_ value: Any) -> Any {
+        switch value {
+        case let codable as AnyCodable:
+            return unwrapClaim(codable.value)
+        case let dictionary as [String: AnyCodable]:
+            return dictionary.mapValues { unwrapClaim($0.value) }
+        case let array as [AnyCodable]:
+            return array.map { unwrapClaim($0.value) }
+        default:
+            return value
+        }
     }
 
     private func encodeFlowResponse(_ r: EmbeddedFlowResponse) -> [String: Any?] {

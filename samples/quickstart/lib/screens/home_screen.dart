@@ -162,16 +162,15 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
   Widget build(BuildContext context) {
     final thunder = ThunderIDProvider.of(context);
     final user = thunder.user;
-    final claims = user?.claims;
-    final givenName = claims?['given_name'] as String?;
+    final givenName = user?['given_name'] as String?;
     final emailPrefix = user?.email?.split('@').first;
     final greetingName = (givenName != null && givenName.isNotEmpty)
         ? givenName
         : (emailPrefix != null && emailPrefix.isNotEmpty)
             ? emailPrefix
             : 'there';
-    final authTime = _epochSecondsFromClaim(claims?['auth_time']);
-    final exp = _epochSecondsFromClaim(claims?['exp']);
+    final authTime = _epochSecondsFromClaim(user?['auth_time']);
+    final exp = _epochSecondsFromClaim(user?['exp']);
     final secondsLeft = exp != null ? exp - _nowSeconds : null;
     final organisation = thunder.widget.config.organizationHandle ?? 'Default';
 

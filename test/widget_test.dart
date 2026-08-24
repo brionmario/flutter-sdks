@@ -18,12 +18,12 @@ import 'package:thunderid_flutter/src/widgets/user_object.dart';
 
 const _config = ThunderIDConfig(baseUrl: 'https://localhost:8090', clientId: 'test');
 
-const _mockUser = User(
-  sub: 'u1',
-  username: 'alice',
-  email: 'alice@example.com',
-  displayName: 'Alice Doe',
-);
+const _mockUser = User({
+  'sub': 'u1',
+  'username': 'alice',
+  'email': 'alice@example.com',
+  'displayName': 'Alice Doe',
+});
 
 /// Sets up a mock MethodChannel for dev.thunderid/sdk.
 void _setHandler(MethodChannel channel, Future<dynamic> Function(MethodCall) handler) {
@@ -158,7 +158,7 @@ void main() {
     });
 
     testWidgets('BaseUserObject receives null when signed out', (tester) async {
-      User? capturedUser = const User(sub: 'placeholder', username: 'x');
+      User? capturedUser = const User({'sub': 'placeholder', 'username': 'x'});
       await tester.pumpWidget(_providerWidget(
         signedIn: false,
         child: BaseUserObject(

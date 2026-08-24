@@ -47,7 +47,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pic = user.profilePicture;
+    final pic = user['picture'] as String?;
     if (pic != null) {
       return Semantics(
         label: 'Profile picture',

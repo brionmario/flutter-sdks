@@ -11,7 +11,7 @@ import 'package:thunderid_flutter/src/widgets/thunderid_provider.dart';
 
 const _config = ThunderIDConfig(baseUrl: 'https://localhost:8090', clientId: 'test');
 const _sdkChannel = MethodChannel('dev.thunderid/sdk');
-const _mockUser = User(sub: 'u1', username: 'brion');
+const _mockUser = User({'sub': 'u1', 'username': 'brion'});
 
 Widget _providerWidget({
   required Widget child,
