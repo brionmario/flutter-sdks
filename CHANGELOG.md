@@ -1,3 +1,11 @@
+## 1.0.1
+
+- Carry the whole claim set across the platform channel
+- Rename ThunderIDSignIn/SignUpState classes to SignIn/SignUpState for consistency
+- Fix stale SPM version pin and wire it into the bump automation
+- Reuse a stable branch for native deps bump PRs
+- Add DCO sign-off to native deps bump commit
+
 ## 1.0.0
 
 
