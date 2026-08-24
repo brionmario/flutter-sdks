@@ -43,9 +43,8 @@ class BaseUserAvatar extends StatelessWidget {
   });
 
   String _resolveName() {
-    final claims = user?.claims;
-    final givenName = claims?['given_name'];
-    final familyName = claims?['family_name'];
+    final givenName = user?['given_name'];
+    final familyName = user?['family_name'];
     if (givenName is String &&
         givenName.isNotEmpty &&
         familyName is String &&
@@ -64,13 +63,10 @@ class BaseUserAvatar extends StatelessWidget {
   }
 
   String? _resolvePictureUrl() {
-    final profilePicture = user?.profilePicture;
-    if (profilePicture != null && profilePicture.isNotEmpty) {
-      return profilePicture;
-    }
-    final claims = user?.claims;
-    if (claims == null) return null;
+    final user = this.user;
+    if (user == null) return null;
     const claimKeys = <String>[
+      'picture',
       'profileUrl',
       'profile',
       'URL',
@@ -78,7 +74,7 @@ class BaseUserAvatar extends StatelessWidget {
       'avatar',
     ];
     for (final key in claimKeys) {
-      final value = claims[key];
+      final value = user[key];
       if (value is String && value.isNotEmpty) return value;
     }
     return null;

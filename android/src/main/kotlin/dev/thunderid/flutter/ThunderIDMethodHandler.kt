@@ -208,11 +208,8 @@ class ThunderIDMethodHandler(private val context: Context) {
         audience = map["audience"] as? String
     )
 
-    private fun encodeUser(user: User) = mapOf(
-        "sub" to user.sub, "email" to user.email,
-        "displayName" to user.displayName, "username" to user.username,
-        "profilePicture" to user.profilePicture, "isNewUser" to user.isNewUser
-    )
+    // Claims are dynamic, so the whole set crosses the channel untouched.
+    private fun encodeUser(user: User) = user.claims
 
     private fun encodeFlowResponse(r: EmbeddedFlowResponse) = mapOf(
         "flowId" to r.flowId, "flowStatus" to r.flowStatus.name,
