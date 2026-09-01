@@ -18,8 +18,8 @@ permissions:
   pull-requests: write
 
 env:
-  RELEASE_GIT_USER_NAME: "thunderid[bot]"
-  RELEASE_GIT_USER_EMAIL: "thunderid[bot]@users.noreply.thunderid.dev"
+  RELEASE_GIT_USER_NAME: "thunder-automation-bot"
+  RELEASE_GIT_USER_EMAIL: "272109929+thunder-automation-bot@users.noreply.github.com"
 
 jobs:
   bump:
