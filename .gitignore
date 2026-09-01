@@ -126,3 +126,6 @@ app.*.symbols
 .env
 .env.local
 .env.*.local
+
+# ThunderID server distribution downloaded by the E2E suite
+.thunderid-server/
