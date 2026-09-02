@@ -33,6 +33,11 @@ runs:
 
     - name: 🧭 Install Maestro
       shell: bash
+      # Pinned rather than latest: an unpinned install swaps the test runner out from under the
+      # suite between runs, so a CI failure cannot be reproduced against the version a
+      # contributor has locally. Bump this deliberately, after checking the flows against it.
+      env:
+        MAESTRO_VERSION: "2.9.0"
       run: |
         curl -Ls "https://get.maestro.mobile.dev" | bash
         echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
@@ -53,6 +58,7 @@ runs:
         # which is the only way to tell a genuine regression from a flake after the fact.
         path: |
           ~/.maestro/tests
+          tests/e2e/report.xml
           tests/e2e/.thunderid-server/server.log
         retention-days: 7
         if-no-files-found: ignore

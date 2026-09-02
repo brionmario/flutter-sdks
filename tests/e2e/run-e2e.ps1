@@ -345,7 +345,11 @@ function Invoke-Flows {
     Write-Host '==> Running Maestro'
     Push-Location $ScriptDir
     try {
-        & maestro --platform android test @target -e "E2E_USERNAME=$E2eUser" -e "E2E_PASSWORD=$E2ePass"
+        # The JUnit report is what makes a failed run readable without scraping the console log;
+        # it sits alongside Maestro's own debug output and CI collects both.
+        & maestro --platform android test @target `
+            --format=JUNIT --output=report.xml `
+            -e "E2E_USERNAME=$E2eUser" -e "E2E_PASSWORD=$E2ePass"
         if ($LASTEXITCODE -ne 0) { throw "Maestro reported failures (exit code $LASTEXITCODE)." }
     } finally {
         Pop-Location

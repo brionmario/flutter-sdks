@@ -381,7 +381,11 @@ run_flows() {
     fi
 
     echo "==> Running Maestro"
+    # The JUnit report is what makes a failed run readable without scraping the console log; it
+    # sits alongside Maestro's own debug output and CI collects both.
     (cd "$SCRIPT_DIR" && maestro --device "$SIM_UDID" test "${target[@]}" \
+        --format=JUNIT \
+        --output=report.xml \
         -e E2E_USERNAME="$E2E_USER" \
         -e E2E_PASSWORD="$E2E_PASS")
 }
