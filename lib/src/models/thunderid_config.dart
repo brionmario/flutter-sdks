@@ -36,14 +36,6 @@ class ThunderIDConfig {
   /// validate against and no endpoint to save to.
   final bool fetchUserProfile;
 
-  // Transport
-  /// Disables TLS certificate and hostname verification on Android.
-  ///
-  /// Intended only for local development against a self-signed ThunderID instance;
-  /// gate it on a debug flag and never ship it enabled. Ignored on iOS, where the
-  /// native SDK already trusts a locally-served certificate on its own.
-  final bool allowInsecureConnections;
-
   // Platform Attestation
   /// When true, the native SDK sends a platform attestation token (Apple App Attest /
   /// Google Play Integrity) on native flow-initiate requests.
@@ -51,6 +43,19 @@ class ThunderIDConfig {
 
   /// Google Cloud project number, required by Play Integrity on Android.
   final int? cloudProjectNumber;
+
+  // Transport
+  /// When true, the native SDK accepts TLS certificates it cannot verify.
+  ///
+  /// This exists so a development build can talk to a ThunderID server using the self-signed
+  /// certificate it generates for `localhost`. On iOS the same thing is achieved at the app
+  /// level with an `NSAppTransportSecurity` exemption, so this flag only takes effect on
+  /// Android, where it is forwarded to the native SDK's own `allowInsecureConnections`.
+  ///
+  /// Never enable it in a release build: it disables certificate validation entirely, which
+  /// removes the guarantee that the server on the other end is the one you think it is. Gate it
+  /// on a debug check, as the Quickstart sample does.
+  final bool allowInsecureConnections;
 
   // Token Validation
   final TokenValidationConfig tokenValidation;

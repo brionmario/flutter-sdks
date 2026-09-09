@@ -180,6 +180,10 @@ class ThunderIDMethodHandler(private val context: Context) {
             afterSignInUrl = args["afterSignInUrl"] as? String,
             afterSignOutUrl = args["afterSignOutUrl"] as? String,
             applicationId = args["applicationId"] as? String,
+            // Lets a development build reach a ThunderID server using the self-signed certificate
+            // it generates for localhost. iOS achieves the same at the app level through an
+            // NSAppTransportSecurity exemption, so the flag is only meaningful here.
+            allowInsecureConnections = args["allowInsecureConnections"] as? Boolean ?: false,
             attestationEnabled = attestationEnabled,
             attestationTokenProvider = if (attestationEnabled) {
                 PlayIntegrityTokenProvider(context, cloudProjectNumber!!)::requestToken
@@ -187,7 +191,6 @@ class ThunderIDMethodHandler(private val context: Context) {
                 null
             },
             tokenValidation = validation,
-            allowInsecureConnections = args["allowInsecureConnections"] as? Boolean ?: false,
             vendor = args["vendor"] as? String ?: ThunderIDConfig.DEFAULT_VENDOR
         )
     }

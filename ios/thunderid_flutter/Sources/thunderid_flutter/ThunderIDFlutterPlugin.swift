@@ -2,7 +2,7 @@ import Flutter
 import UIKit
 import ThunderID
 
-@objc public class ThunderIDFlutterPlugin: NSObject, FlutterPlugin {
+@objc @MainActor public class ThunderIDFlutterPlugin: NSObject, FlutterPlugin {
     private let handler = ThunderIDMethodHandler()
 
     public static func register(with registrar: FlutterPluginRegistrar) {
