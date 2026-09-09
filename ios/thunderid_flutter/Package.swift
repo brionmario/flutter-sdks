@@ -15,8 +15,7 @@ let package = Package(
             name: "thunderid_flutter",
             dependencies: [
                 .product(name: "ThunderID", package: "ios-sdks")
-            ],
-            path: "../Classes"
+            ]
         )
     ]
 )

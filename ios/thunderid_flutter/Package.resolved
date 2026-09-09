@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "ios-sdks",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/thunder-id/ios-sdks.git",
+      "state" : {
+        "revision" : "c8186ebe83be4afb2107f39fddd4b12b993575ef",
+        "version" : "1.1.0"
+      }
+    }
+  ],
+  "version" : 2
+}

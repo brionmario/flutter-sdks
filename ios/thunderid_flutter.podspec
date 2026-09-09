@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.license          = { :type => 'Apache License 2.0', :file => '../LICENSE' }
   s.author           = { 'ThunderID' => 'dev@thunderid.dev' }
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'thunderid_flutter/Sources/thunderid_flutter/**/*'
   s.dependency       'Flutter'
   s.dependency       'ThunderID', '>= 1.1.0'
   s.platform         = :ios, '16.0'
