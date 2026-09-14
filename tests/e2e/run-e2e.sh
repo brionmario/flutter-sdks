@@ -380,6 +380,23 @@ run_flows() {
         target=("${maestro_args[@]}")
     fi
 
+    # The server log says what the server was asked and what it answered. Without the app's own
+    # output there is no way to tell a server that never replied from an app that ignored the
+    # reply, which is the difference between a product bug and a test bug. Stream the sample's
+    # console to a file for the duration of the run.
+    local app_log="$SCRIPT_DIR/app.log"
+    : > "$app_log"
+    xcrun simctl spawn "$SIM_UDID" log stream \
+        --style compact \
+        --predicate 'processImagePath CONTAINS "Runner"' \
+        >> "$app_log" 2>&1 &
+    local log_pid=$!
+    # Stop the stream however the run ends, including a failed flow under `set -e`. The pid is
+    # expanded into the trap now rather than read back at exit: it is function-local, the trap
+    # fires after the function has returned, and under `set -u` a late lookup aborts the script
+    # with "log_pid: unbound variable" after the flows have already passed.
+    trap "kill $log_pid 2>/dev/null || true" EXIT
+
     echo "==> Running Maestro"
     # The JUnit report is what makes a failed run readable without scraping the console log; it
     # sits alongside Maestro's own debug output and CI collects both.

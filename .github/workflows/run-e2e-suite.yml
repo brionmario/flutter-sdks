@@ -58,16 +58,30 @@ jobs:
           THUNDERID_VERSION: ${{ inputs.thunderid-version }}
         run: ./run-e2e.sh
 
+      # upload-artifact does not expand `~`, so a path under the home directory silently
+      # contributes nothing and the run looks like it uploaded debug output when it did not.
+      # Copying into the workspace first is what actually gets Maestro's screenshots and
+      # hierarchy off the runner.
+      - name: 🧳 Collect Debug Output
+        if: ${{ failure() }}
+        run: |
+          mkdir -p tests/e2e/debug
+          cp -R "$HOME/.maestro/tests" tests/e2e/debug/maestro 2>/dev/null || \
+            echo "no maestro debug output found under $HOME/.maestro/tests"
+          ls -R tests/e2e/debug | head -50
+
       - name: 📤 Upload Debug Artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-debug-flutter${{ inputs.artifact-suffix }}
-          # Maestro writes screenshots, the recorded hierarchy and its own logs here on failure,
-          # which is the only way to tell a genuine regression from a flake after the fact.
+          # Maestro's screenshots and recorded hierarchy, the app's own console output, and the
+          # server log. Between them they say whether a failure was the app, the server, or the
+          # test, which the JUnit report alone cannot.
           path: |
-            ~/.maestro/tests
+            tests/e2e/debug
             tests/e2e/report.xml
+            tests/e2e/app.log
             tests/e2e/.thunderid-server/server.log
           retention-days: 7
           if-no-files-found: ignore
