@@ -57,6 +57,26 @@ env:
 - retry:
     maxRetries: 2
     commands:
+      # A retry that follows a dropped connection has no form left to type into, only the error
+      # sheet, and that sheet carries no control to dismiss it. Restart and re-enter the flow
+      # first. On the first attempt, and on an expired-challenge retry, the form is still there
+      # and this does nothing.
+      - runFlow:
+          when:
+            notVisible:
+              id: "thunderid-field-username"
+          commands:
+            - launchApp:
+                clearState: true
+            - runFlow: subflows/ensure-signed-out.yaml
+            - tapOn: "Sign in"
+            - extendedWaitUntil:
+                visible:
+                  id: "thunderid-field-username"
+                timeout: 25000
+            - waitForAnimationToEnd:
+                timeout: 3000
+
       - tapOn:
           id: "thunderid-field-username"
       - eraseText: 50
@@ -86,6 +106,15 @@ env:
           notVisible:
             id: "thunderid-field-username"
           timeout: 20000
+
+      # The credentials step going away is necessary but not sufficient: a dropped connection
+      # replaces it with an error sheet, which satisfies the check above just as well as a
+      # successful submission does. Without this the retry treats the failure as a pass, exits,
+      # and the authenticated-state assertion below fails with no attempt left to save it.
+      #
+      # The pattern matches the element's whole text, so it needs the `.*` either side: the
+      # banner reads "[NETWORK_ERROR] Network request failed: ...", not "NETWORK_ERROR".
+      - assertNotVisible: ".*NETWORK_ERROR.*"
 
 # Authenticated state, asserted outside the retry on purpose. A submission the server accepted
 # that never reaches the authenticated state is a real failure, and it has to report as one.
