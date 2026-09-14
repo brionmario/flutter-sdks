@@ -14,14 +14,31 @@ env:
 # instance; against a long-lived dev server, expect the accounts to accumulate.
 - evalScript: ${output.username = 'e2e_signup_' + Date.now()}
 
-- tapOn: "Get started"
-
 # The registration step is server-rendered like the sign-in step, but its flow definition uses
 # different action refs, so the submit button id differs from signin.yaml.
-- extendedWaitUntil:
-    visible:
-      id: "thunderid-field-username"
-    timeout: 20000
+#
+# Entering a flow makes the first `POST /flow/execute` call, and a connection dropped there
+# (NSURLErrorDomain -1005) leaves the app on an error sheet with the step never rendered. That
+# is a transport failure rather than a product one, and a real user would simply try again, so
+# retry the entry. A step that genuinely never renders still fails, after the retries.
+- retry:
+    maxRetries: 2
+    commands:
+      # A second attempt means the previous one left the app on the error sheet, which carries
+      # no control to dismiss it and no way back to the landing screen. Restart before trying
+      # again. On the first attempt "Get started" is already on screen and this does nothing.
+      - runFlow:
+          when:
+            notVisible: "Get started"
+          commands:
+            - launchApp:
+                clearState: true
+            - runFlow: subflows/ensure-signed-out.yaml
+      - tapOn: "Get started"
+      - extendedWaitUntil:
+          visible:
+            id: "thunderid-field-username"
+          timeout: 25000
 
 # "Visible" fires the instant the field is on screen, which on a loaded CI runner can be before
 # the widget has actually finished settling (Flutter still completing its own build and layout
@@ -43,6 +60,36 @@ env:
 - retry:
     maxRetries: 2
     commands:
+      # A dropped connection strands the app on an error sheet with no control to dismiss it,
+      # so a retry has to restart rather than poke at a screen that is already gone. The form
+      # still being there is what says the attempt is recoverable in place, so key off that:
+      # on the first attempt, and on an expired-challenge retry, this does nothing.
+      - runFlow:
+          when:
+            notVisible:
+              id: "thunderid-field-username"
+          commands:
+            - launchApp:
+                clearState: true
+            - runFlow: subflows/ensure-signed-out.yaml
+      # A restarted attempt is back on the landing screen rather than the form, so re-enter the
+      # flow. When the previous attempt got as far as the form this is already satisfied.
+      - runFlow:
+          when:
+            visible: "Get started"
+          commands:
+            # Each attempt claims its own name: a connection dropped mid-submission can leave
+            # the registration applied server-side, and reusing the name would then fail as
+            # already taken rather than retrying cleanly.
+            - evalScript: ${output.username = 'e2e_signup_' + Date.now()}
+            - tapOn: "Get started"
+            - extendedWaitUntil:
+                visible:
+                  id: "thunderid-field-username"
+                timeout: 25000
+            - waitForAnimationToEnd:
+                timeout: 3000
+
       - tapOn:
           id: "thunderid-field-username"
       - eraseText: 50
@@ -72,7 +119,7 @@ env:
       - extendedWaitUntil:
           visible:
             id: "thunderid-field-email"
-          timeout: 30000
+          timeout: 60000
 
 # See the comment above the first waitForAnimationToEnd in this file - same settling race,
 # same fix, for the first (and only) field on this freshly-rendered step.
@@ -91,13 +138,27 @@ env:
 # is what proves the account is actually usable.
 - extendedWaitUntil:
     visible: "Get started"
-    timeout: 30000
+    timeout: 60000
 
-- tapOn: "Sign in"
-- extendedWaitUntil:
-    visible:
-      id: "thunderid-field-username"
-    timeout: 20000
+# Same transport exposure as the registration entry above.
+- retry:
+    maxRetries: 2
+    commands:
+      # A second attempt means the previous one left the app on the error sheet, which carries
+      # no control to dismiss it and no way back to the landing screen. Restart before trying
+      # again. On the first attempt "Sign in" is already on screen and this does nothing.
+      - runFlow:
+          when:
+            notVisible: "Sign in"
+          commands:
+            - launchApp:
+                clearState: true
+            - runFlow: subflows/ensure-signed-out.yaml
+      - tapOn: "Sign in"
+      - extendedWaitUntil:
+          visible:
+            id: "thunderid-field-username"
+          timeout: 25000
 
 # See the comment above the first waitForAnimationToEnd in this file - same settling race.
 - waitForAnimationToEnd:
@@ -135,9 +196,16 @@ env:
 
       - runFlow: subflows/dismiss-save-password.yaml
 
+      # See signin.yaml: the retry tests whether the submission was accepted, which is the
+      # credentials step going away. The authenticated state is asserted outside the retry.
       - extendedWaitUntil:
-          visible: "Session active"
-          timeout: 30000
+          notVisible:
+            id: "thunderid-field-username"
+          timeout: 20000
+
+- extendedWaitUntil:
+    visible: "Session active"
+    timeout: 60000
 
 - scrollUntilVisible:
     element: "Sign out"

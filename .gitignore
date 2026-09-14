@@ -134,3 +134,5 @@ app.*.symbols
 
 # Maestro JUnit report from the E2E suite.
 tests/e2e/report.xml
+tests/e2e/app.log
+tests/e2e/debug/
