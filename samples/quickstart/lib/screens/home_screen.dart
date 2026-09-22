@@ -318,7 +318,7 @@ class _HomeTabScreenState extends State<_HomeTabScreen> {
             const Divider(),
             _ActionRow(
               icon: Icons.person_outline,
-              label: 'My profile',
+              label: 'Manage Account',
               onTap: () => widget.onNavigate('profile'),
             ),
             const Divider(),
@@ -510,109 +510,111 @@ class _ActionRow extends StatelessWidget {
 // Profile screen
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Manage Account hub: a back link, then one navigation row per section. Each row pushes a
+/// section screen holding the actual SDK component - the styled `UserProfile` widget carries
+/// its own presentation (see `internal/account_style.dart` in the SDK), so neither this screen
+/// nor `_AccountSectionScreen` hand-roll any of it.
 class _ProfileScreen extends StatelessWidget {
   final VoidCallback onBack;
   const _ProfileScreen({required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    // BaseUserProfile drives the /users/me data and edit/save state, so this screen
-    // keeps its own card design and adds inline per-field edit controls to it.
-    return BaseUserProfile(
-      onSaved: () => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile saved')),
-      ),
-      builder: (ctx, state) => Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Back button ────────────────────────────────────────────
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: onBack,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.chevron_left, color: _kBlue, size: 22),
-                      Text(
-                        'Home',
-                        style: TextStyle(
-                          color: _kBlue,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              _BackChevron(label: 'Home', onTap: onBack),
+              const SizedBox(height: 8),
+              const Text(
+                'Manage Account',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _kTextDark),
+              ),
+              const SizedBox(height: 20),
+              _AccountSettingsRow(
+                icon: Icons.person_outline,
+                label: 'Personal info',
+                onTap: () => _openSection(
+                  context,
+                  'Personal info',
+                  UserProfile(
+                    onSaved: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Profile saved')),
+                    ),
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                const SizedBox(height: 24),
+  void _openSection(BuildContext context, String title, Widget child) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => _AccountSectionScreen(title: title, child: child),
+      ),
+    );
+  }
+}
 
-                if (state.isLoading && state.profile == null)
-                  const Center(child: CircularProgressIndicator())
-                else if (state.error != null)
-                  Text(
-                    state.error!,
-                    style: const TextStyle(fontSize: 13, color: _kRed),
-                  )
-                else ...[
-                  // ── Avatar + name + email ──────────────────────────────
-                  Center(
-                    child: Column(
-                      children: [
-                        const UserAvatar(size: 56),
-                        const SizedBox(height: 12),
-                        Text(
-                          state.displayName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _kTextDark,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          state.email ?? '',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: _kMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+class _AccountSettingsRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
-                  const SizedBox(height: 28),
+  const _AccountSettingsRow({required this.icon, required this.label, required this.onTap});
 
-                  // ── Account details section ────────────────────────────
-                  const _SectionHeader(label: 'ACCOUNT DETAILS'),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: _kMuted.withValues(alpha: 0.2),
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      children: [
-                        for (final field in state.fields) ...[
-                          if (field != state.fields.first)
-                            const Divider(height: 1),
-                          _DetailFieldRow(field: field, state: state),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: _kTextDark, size: 22),
+            const SizedBox(width: 16),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 16, color: _kTextDark))),
+            const Icon(Icons.chevron_right, color: _kMuted, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                const SizedBox(height: 32),
-              ],
-            ),
+class _AccountSectionScreen extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _AccountSectionScreen({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              _BackChevron(label: 'Manage Account', onTap: () => Navigator.of(context).pop()),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _kTextDark),
+              ),
+              const SizedBox(height: 20),
+              child,
+            ],
           ),
         ),
       ),
@@ -620,104 +622,50 @@ class _ProfileScreen extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+/// Back control used by every screen nested under the home tab: a chevron followed by the name
+/// of the screen it returns to, matching the Android/iOS SDKs' "‹ Home" convention.
+///
+/// It carries a fixed Semantics id rather than relying on [label] text for E2E targeting, since
+/// that text differs per screen. One shared id is unambiguous here: exactly one of these is ever
+/// on screen at a time, since each is a different screen's own back control in a single
+/// push/pop chain, never siblings in the same view.
+class _BackChevron extends StatelessWidget {
   final String label;
-  const _SectionHeader({required this.label});
+  final VoidCallback onTap;
+  const _BackChevron({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.0,
-        color: _kMuted,
-      ),
-    );
-  }
-}
-
-/// A single row: pencil to edit, then an inline field with save/cancel.
-class _DetailFieldRow extends StatelessWidget {
-  final ProfileField field;
-  final UserProfileState state;
-  const _DetailFieldRow({required this.field, required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    final isEditing = state.isEditing(field.name);
-    final error = state.fieldError(field.name);
-    final value = stringifyFieldValue(field.rawValue);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 110,
-                child: Text(
-                  field.label.toUpperCase(),
+    return Semantics(
+      identifier: 'thunderid-nav-back',
+      // The chevron glyph carries its own built-in padding, so the tap target's box left edge
+      // doesn't line up with the text below it. Shifting the whole control left compensates,
+      // rather than a negative Padding, which Flutter rejects.
+      child: Transform.translate(
+        offset: const Offset(-6, 0),
+        child: InkWell(
+          key: const Key('thunderid-nav-back'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 6, right: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.chevron_left, color: _kBlue, size: 26),
+                const SizedBox(width: 2),
+                Text(
+                  label,
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _kMuted,
-                    letterSpacing: 0.3,
+                    color: _kBlue,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
-              if (isEditing && !field.isReadonly) ...[
-                Expanded(
-                  child: Semantics(
-                    label: field.label,
-                    child: TextField(
-                      controller: state.controllerFor(field.name),
-                      onChanged: (v) => state.setFieldValue(field.name, v),
-                      style: const TextStyle(fontSize: 14, color: _kTextDark),
-                      decoration: const InputDecoration(isDense: true),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => state.save(field.name),
-                  icon: const Icon(Icons.check_circle, color: _kGreen),
-                  iconSize: 20,
-                  tooltip: 'Save',
-                ),
-                IconButton(
-                  onPressed: () => state.cancel(field.name),
-                  icon: const Icon(Icons.cancel, color: _kMuted),
-                  iconSize: 20,
-                  tooltip: 'Cancel',
-                ),
-              ] else ...[
-                Expanded(
-                  child: Text(
-                    value.isEmpty ? '-' : value,
-                    style: const TextStyle(fontSize: 14, color: _kTextDark),
-                  ),
-                ),
-                if (!field.isReadonly)
-                  IconButton(
-                    onPressed: () => state.edit(field.name),
-                    icon: const Icon(Icons.edit, color: _kBlue),
-                    iconSize: 16,
-                    tooltip: 'Edit',
-                  ),
               ],
-            ],
-          ),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 110, top: 2),
-              child: Text(
-                error,
-                style: const TextStyle(fontSize: 11, color: _kRed),
-              ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -829,25 +777,9 @@ class _TokenScreenState extends State<_TokenScreen> {
             children: [
               // ── Back button ──────────────────────────────────────────────
               const SizedBox(height: 16),
-              GestureDetector(
-                onTap: widget.onBack,
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.chevron_left, color: _kBlue, size: 22),
-                    Text(
-                      'Home',
-                      style: TextStyle(
-                        color: _kBlue,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _BackChevron(label: 'Home', onTap: widget.onBack),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
 
               // ── Title row ────────────────────────────────────────────────
               Row(
