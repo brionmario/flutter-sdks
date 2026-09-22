@@ -35,8 +35,8 @@ const Map<String, String> thunderDefaultStrings = {
   'user.anonymous': 'User',
 
   // User profile
-  'userProfile.title': 'Profile',
-  'userProfile.save': 'Save Changes',
+  'userProfile.title': 'Personal info',
+  'userProfile.save': 'Save',
   'userProfile.edit': 'Edit',
   'userProfile.cancel': 'Cancel',
   'userProfile.changePassword': 'Change Password',
@@ -45,6 +45,7 @@ const Map<String, String> thunderDefaultStrings = {
   'userProfile.error.save': 'Failed to save changes.',
   'userProfile.validation.required': 'This field is required.',
   'userProfile.validation.pattern': 'This value is not valid.',
+  'userProfile.editDescription': "This information helps us verify it's really you using your account.",
 
   // Organizations
   'organization.unnamed': 'Organization',

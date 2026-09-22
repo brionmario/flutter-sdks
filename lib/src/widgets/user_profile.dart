@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import '../i18n/thunderid_i18n.dart';
 import '../models/user.dart';
 import '../models/user_profile.dart' as model;
+import 'internal/account_style.dart';
 import 'thunderid_provider.dart';
-import 'user_avatar.dart';
 
 // Attribute names that are always readonly regardless of schema mutability (data contract).
 const Set<String> _readonlyFields = {
@@ -48,6 +48,11 @@ class ProfileField {
 
   /// Human label for the field, falling back to the raw attribute name.
   String get label => schema.displayName ?? schema.description ?? name;
+
+  /// A nested-object attribute. Matches the Android/iOS SDKs: such fields render read-only via
+  /// a dedicated key:value display and never get an Edit affordance, since the edit page's plain
+  /// text field has no way to write a structured value back without corrupting it.
+  bool get isComplex => schema.type == 'COMPLEX' && rawValue is Map;
 }
 
 /// Every non-credential schema attribute is shown by default.
@@ -174,6 +179,19 @@ String? mapAttribute(
   return null;
 }
 
+/// Finds the schema field, if any, that [mapAttribute]'s `'picture'` candidates would resolve -
+/// what the styled [UserProfile]'s avatar edit badge edits, so the two stay in sync with no
+/// separate configuration of their own.
+ProfileField? _findPictureField(List<ProfileField> fields, Map<String, List<String>> mappings) {
+  final candidates = mappings['picture'] ?? _defaultAttributeMappings['picture']!;
+  for (final candidate in candidates) {
+    for (final field in fields) {
+      if (field.name == candidate) return field;
+    }
+  }
+  return null;
+}
+
 /// Combines mapped firstName/lastName into a display name, falling back to username then id.
 String computeDisplayName(
   Map<String, List<String>> mappings,
@@ -203,6 +221,11 @@ String stringifyFieldValue(Object? rawValue) {
   if (rawValue is Map) return '';
   return '$rawValue';
 }
+
+/// Renders a COMPLEX field's map value as one `key: value` line per entry, matching the
+/// Android/iOS SDKs' dedicated complex-value display.
+String stringifyComplexValue(Map<Object?, Object?> rawValue) =>
+    rawValue.entries.map((e) => '${e.key}: ${e.value}').join('\n');
 
 /// Builds the nested attributes payload segment for a single dot-path field save.
 Map<String, dynamic> buildUpdatePayload(
@@ -263,12 +286,15 @@ class UserProfileState {
   final void Function(String name) edit;
   final void Function(String name) cancel;
   final void Function(String name, String value) setFieldValue;
-  final void Function(String name) save;
+
+  /// Resolves once the save attempt settles, success or failure — awaiting it (rather than
+  /// firing and forgetting) is what lets a styled edit screen know whether to close itself or
+  /// stay open showing [fieldError].
+  final Future<void> Function(String name) save;
 
   final Map<String, String> _editedValues;
   final Set<String> _editingFields;
   final Map<String, String> _fieldErrors;
-  final Map<String, TextEditingController> _controllers;
 
   const UserProfileState({
     required this.profile,
@@ -284,11 +310,9 @@ class UserProfileState {
     required Map<String, String> editedValues,
     required Set<String> editingFields,
     required Map<String, String> fieldErrors,
-    required Map<String, TextEditingController> controllers,
   })  : _editedValues = editedValues,
         _editingFields = editingFields,
-        _fieldErrors = fieldErrors,
-        _controllers = controllers;
+        _fieldErrors = fieldErrors;
 
   bool isEditing(String name) => _editingFields.contains(name);
 
@@ -296,12 +320,13 @@ class UserProfileState {
       _editedValues[field.name] ?? stringifyFieldValue(field.rawValue);
 
   String? fieldError(String name) => _fieldErrors[name];
-
-  /// Controller backing [name]'s text input for as long as it is being edited.
-  TextEditingController? controllerFor(String name) => _controllers[name];
 }
 
-/// Editable, schema-driven user profile.
+/// Editable, schema-driven user profile. Renders an avatar header followed by one row per
+/// schema field; tapping a row's Edit link pushes a full-screen edit page for that field.
+///
+/// Deliberately not built on Material widgets beyond primitives like `TextField`/`InkWell`: see
+/// `internal/account_style.dart` for why.
 class UserProfile extends StatelessWidget {
   final Map<String, List<String>> attributeMapping;
   final VoidCallback? onSaved;
@@ -316,169 +341,177 @@ class UserProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
+    final colors = ThunderAccountColors.of(context);
     final i18n = ThunderIDProvider.of(context).i18n;
     return BaseUserProfile(
       attributeMapping: attributeMapping,
       onSaved: onSaved,
       onError: onError,
-      builder: (ctx, state) {
+      builder: (context, state) {
         if (state.isLoading && state.profile == null) {
           return const Center(child: CircularProgressIndicator());
         }
         final error = state.error;
         if (error != null) {
-          return Text(error, style: TextStyle(color: cs.error, fontSize: 13));
+          return Text(error, style: TextStyle(color: colors.error, fontSize: 13));
         }
+        final pictureField = _findPictureField(state.fields, attributeMapping);
+        // Every schema field is shown, including read-only ones like username - they just get
+        // no Edit link, matching the Android/iOS SDKs rather than disappearing entirely. The
+        // picture field, if any, is edited through the avatar's own badge instead of appearing
+        // a second time as a plain URL row.
+        final visibleFields = state.fields.where((f) => f != pictureField).toList();
         return Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (state.displayName.isNotEmpty) ...[
-              Column(
-                children: [
-                  const UserAvatar(size: 64),
-                  const SizedBox(height: 8),
-                  Text(state.displayName, style: tt.titleMedium),
-                  if (state.email != null)
-                    Text(
-                      state.email!,
-                      style: tt.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+              Center(
+                child: Column(
+                  children: [
+                    ThunderAccountAvatar(
+                      onEdit: pictureField == null
+                          ? null
+                          : () => _openFieldEditor(context, state, pictureField, i18n),
                     ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      state.displayName,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.text),
+                    ),
+                    if (state.email != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          state.email!,
+                          style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
-            for (final field in state.fields) ...[
-              _ProfileFieldRow(field: field, state: state, i18n: i18n),
-              if (field != state.fields.last)
-                Divider(height: 1, color: cs.outlineVariant),
+            if (visibleFields.isNotEmpty) ...[
+              for (final field in visibleFields)
+                ThunderAccountRow(
+                  label: field.label,
+                  value: _fieldDisplayValue(field),
+                  editLabel: i18n.resolve('userProfile.edit'),
+                  showDivider: field != visibleFields.last,
+                  onEdit: field.isReadonly || field.isComplex
+                      ? null
+                      : () => _openFieldEditor(context, state, field, i18n),
+                ),
             ],
           ],
         );
       },
     );
   }
+
+  String _fieldDisplayValue(ProfileField field) {
+    final value =
+        field.isComplex ? stringifyComplexValue(field.rawValue as Map) : stringifyFieldValue(field.rawValue);
+    return value.isEmpty ? '-' : value;
+  }
+
+  void _openFieldEditor(
+    BuildContext context,
+    UserProfileState state,
+    ProfileField field,
+    ThunderIDI18n i18n,
+  ) {
+    state.edit(field.name);
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: true,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+        pageBuilder: (context, animation, secondaryAnimation) => _ProfileFieldEditPage(
+          field: field,
+          state: state,
+          i18n: i18n,
+        ),
+      ),
+    );
+  }
 }
 
-class _ProfileFieldRow extends StatelessWidget {
+class _ProfileFieldEditPage extends StatefulWidget {
   final ProfileField field;
   final UserProfileState state;
   final ThunderIDI18n i18n;
 
-  const _ProfileFieldRow({
-    required this.field,
-    required this.state,
-    required this.i18n,
-  });
+  const _ProfileFieldEditPage({required this.field, required this.state, required this.i18n});
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final isEditing = state.isEditing(field.name);
-    final isComplex = field.schema.type == 'COMPLEX' && field.rawValue is Map;
-    final error = state.fieldError(field.name);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            field.label,
-            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Expanded(
-                child: isComplex
-                    ? _ComplexValue(value: field.rawValue as Map)
-                    : isEditing && !field.isReadonly
-                        ? _FieldEditor(field: field, state: state)
-                        : Text(
-                            stringifyFieldValue(field.rawValue).isEmpty
-                                ? '-'
-                                : stringifyFieldValue(field.rawValue),
-                            style: tt.bodyMedium,
-                          ),
-              ),
-              if (isEditing && !field.isReadonly) ...[
-                IconButton(
-                  onPressed: () => state.save(field.name),
-                  icon: const Icon(Icons.check),
-                  tooltip: i18n.resolve('userProfile.save'),
-                ),
-                IconButton(
-                  onPressed: () => state.cancel(field.name),
-                  icon: const Icon(Icons.close),
-                  tooltip: i18n.resolve('userProfile.cancel'),
-                ),
-              ] else if (!field.isReadonly && !isComplex)
-                IconButton(
-                  onPressed: () => state.edit(field.name),
-                  icon: const Icon(Icons.edit, size: 18),
-                  tooltip: i18n.resolve('userProfile.edit'),
-                ),
-            ],
-          ),
-          if (error != null)
-            Text(error, style: tt.bodySmall?.copyWith(color: cs.error)),
-        ],
-      ),
-    );
-  }
+  State<_ProfileFieldEditPage> createState() => _ProfileFieldEditPageState();
 }
 
-class _FieldEditor extends StatelessWidget {
-  final ProfileField field;
-  final UserProfileState state;
-
-  const _FieldEditor({required this.field, required this.state});
+class _ProfileFieldEditPageState extends State<_ProfileFieldEditPage> {
+  // Owned locally rather than by BaseUserProfile's state, and disposed in this State's own
+  // dispose(). A PageRouteBuilder's popped page stays mounted (and can keep rebuilding, e.g. on
+  // every frame of its own exit transition) for a stretch after Navigator.pop() is called, not
+  // just until that call returns - a controller owned elsewhere and disposed as soon as pop()
+  // was called raced that transition and could be disposed while this page's TextField was
+  // still actively using it (a "TextEditingController used after being disposed" crash).
+  // Flutter guarantees dispose() below only runs once this page's Element is actually removed,
+  // which is what makes this version safe.
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.state.fieldValue(widget.field));
+  bool _saving = false;
 
   @override
-  Widget build(BuildContext context) {
-    if (field.schema.type == 'BOOLEAN') {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Semantics(
-          label: field.label,
-          child: Switch(
-            value: state.fieldValue(field) == 'true',
-            onChanged: (on) =>
-                state.setFieldValue(field.name, on ? 'true' : 'false'),
-          ),
-        ),
-      );
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.state.save(widget.field.name);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    // A save that fails leaves isEditing(field.name) true with fieldError set, so the page
+    // stays open showing the error; only a successful save (which clears editingFields) pops.
+    if (!widget.state.isEditing(widget.field.name)) {
+      Navigator.of(context).pop();
     }
-    return Semantics(
-      label: field.label,
-      child: TextField(
-        controller: state.controllerFor(field.name),
-        onChanged: (value) => state.setFieldValue(field.name, value),
-        decoration: const InputDecoration(isDense: true),
-      ),
-    );
   }
-}
-
-class _ComplexValue extends StatelessWidget {
-  final Map<dynamic, dynamic> value;
-
-  const _ComplexValue({required this.value});
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final keys = value.keys.map((k) => '$k').toList()..sort();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final key in keys)
-          Text('$key: ${value[key]}', style: tt.bodySmall),
-      ],
+    final field = widget.field;
+    final state = widget.state;
+    return ThunderAccountEditPage(
+      title: field.label,
+      description: widget.i18n.resolve('userProfile.editDescription'),
+      cancelLabel: widget.i18n.resolve('userProfile.cancel'),
+      saveLabel: widget.i18n.resolve('userProfile.save'),
+      cancelIdentifier: 'thunderid-action-cancelProfileField',
+      saveIdentifier: 'thunderid-action-saveProfileField',
+      backLabel: widget.i18n.resolve('userProfile.title'),
+      onCancel: () {
+        state.cancel(field.name);
+        Navigator.of(context).pop();
+      },
+      onSave: _saving ? null : _save,
+      errorText: state.fieldError(field.name),
+      child: field.schema.type == 'BOOLEAN'
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: Switch(
+                value: state.fieldValue(field) == 'true',
+                onChanged: (on) => state.setFieldValue(field.name, on ? 'true' : 'false'),
+              ),
+            )
+          : ThunderAccountField(
+              label: field.label,
+              identifier: 'thunderid-field-profile-${field.name}',
+              controller: _controller,
+              onChanged: (value) => state.setFieldValue(field.name, value),
+            ),
     );
   }
 }
@@ -514,20 +547,11 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
   final _editedValues = <String, String>{};
   final _editingFields = <String>{};
   final _fieldErrors = <String, String>{};
-  final _controllers = <String, TextEditingController>{};
 
   @override
   void initState() {
     super.initState();
     Future.microtask(_load);
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _controllers.values) {
-      controller.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -577,13 +601,10 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
   void _editField(String name) {
     final field = _fieldByName(name);
     if (field == null) return;
-    final initial = stringifyFieldValue(field.rawValue);
     setState(() {
-      _editedValues[name] = initial;
+      _editedValues[name] = stringifyFieldValue(field.rawValue);
       _editingFields.add(name);
       _fieldErrors.remove(name);
-      _controllers.remove(name)?.dispose();
-      _controllers[name] = TextEditingController(text: initial);
     });
   }
 
@@ -592,11 +613,10 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
       _editingFields.remove(name);
       _editedValues.remove(name);
       _fieldErrors.remove(name);
-      _controllers.remove(name)?.dispose();
     });
   }
 
-  void _saveField(String name) {
+  Future<void> _saveField(String name) async {
     final field = _fieldByName(name);
     if (field == null) return;
     final value = _editedValues[name] ?? stringifyFieldValue(field.rawValue);
@@ -607,7 +627,7 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
       return;
     }
     setState(() => _fieldErrors.remove(name));
-    unawaited(_performSave(name, field, value));
+    await _performSave(name, field, value);
   }
 
   Future<void> _performSave(
@@ -634,7 +654,6 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
       setState(() {
         _editingFields.remove(name);
         _editedValues.remove(name);
-        _controllers.remove(name)?.dispose();
       });
       widget.onSaved?.call();
     } catch (e) {
@@ -665,11 +684,10 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
           edit: _ignoreName,
           cancel: _ignoreName,
           setFieldValue: _ignoreNameAndValue,
-          save: _ignoreName,
+          save: _ignoreNameAsync,
           editedValues: const {},
           editingFields: const {},
           fieldErrors: const {},
-          controllers: const {},
         ),
       );
     }
@@ -689,7 +707,6 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
         editedValues: _editedValues,
         editingFields: _editingFields,
         fieldErrors: _fieldErrors,
-        controllers: _controllers,
       ),
     );
   }
@@ -699,6 +716,8 @@ class _BaseUserProfileState extends State<BaseUserProfile> {
   }
 
   static void _ignoreName(String name) {}
+
+  static Future<void> _ignoreNameAsync(String name) async {}
 
   static void _ignoreNameAndValue(String name, String value) {}
 }
