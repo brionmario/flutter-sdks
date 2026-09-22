@@ -511,9 +511,9 @@ class _ActionRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Manage Account hub: a back link, then one navigation row per section. Each row pushes a
-/// section screen holding the actual SDK component - the styled `UserProfile` widget carries
-/// its own presentation (see `internal/account_style.dart` in the SDK), so neither this screen
-/// nor `_AccountSectionScreen` hand-roll any of it.
+/// section screen holding the actual SDK component - the styled `UserProfile` and
+/// `ChangeCredential` widgets carry their own presentation (see `internal/account_style.dart`
+/// in the SDK), so neither this screen nor `_AccountSectionScreen` hand-roll any of it.
 class _ProfileScreen extends StatelessWidget {
   final VoidCallback onBack;
   const _ProfileScreen({required this.onBack});
@@ -547,6 +547,11 @@ class _ProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+              _AccountSettingsRow(
+                icon: Icons.shield_outlined,
+                label: 'Security',
+                onTap: () => _openSection(context, 'Security', const ChangeCredential()),
               ),
             ],
           ),

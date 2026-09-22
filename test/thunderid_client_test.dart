@@ -55,6 +55,8 @@ void main() {
               'isReadOnly': false,
               'attributes': updateArgs['payload'],
             };
+          case 'updateUserCredentials':
+            return null;
           case 'continueFederatedAuth':
             final args = call.arguments as Map<Object?, Object?>;
             if (args['redirectUrl'] == 'https://cancel.example') {
@@ -168,6 +170,25 @@ void main() {
       expect(args['payload'], {'displayName': 'Grace'});
       expect(args.containsKey('userId'), false);
       expect(profile.attributes['displayName'], 'Grace');
+    });
+
+    test('updateUserCredentials sends the attribute and new value', () async {
+      await client.initialize(config);
+      await client.updateUserCredentials(attribute: 'pin', newValue: '4242');
+
+      final call = log.firstWhere((c) => c.method == 'updateUserCredentials');
+      final args = call.arguments as Map<Object?, Object?>;
+      expect(args['attribute'], 'pin');
+      expect(args['newValue'], '4242');
+    });
+
+    test('updateUserCredentials defaults attribute to password', () async {
+      await client.initialize(config);
+      await client.updateUserCredentials(newValue: 'n3wP@ss');
+
+      final call = log.firstWhere((c) => c.method == 'updateUserCredentials');
+      final args = call.arguments as Map<Object?, Object?>;
+      expect(args['attribute'], 'password');
     });
 
     test('setCachedUser writes merged claims back to the native cache', () async {

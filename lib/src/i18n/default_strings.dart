@@ -47,6 +47,19 @@ const Map<String, String> thunderDefaultStrings = {
   'userProfile.validation.pattern': 'This value is not valid.',
   'userProfile.editDescription': "This information helps us verify it's really you using your account.",
 
+  // Change credential
+  'changeCredential.update': 'Update',
+  'changeCredential.section': 'Security',
+  'changeCredential.heading': 'Change {credential}',
+  'changeCredential.description': "Choose a strong {credentialLower} and don't reuse it for other accounts.",
+  'changeCredential.new.label': 'New {credential}',
+  'changeCredential.confirm.label': 'Confirm New {credential}',
+  'changeCredential.mismatch.error': '{credential}s do not match.',
+  'changeCredential.requirements.pattern': 'Must match the required format.',
+  'changeCredential.generic.error':
+      'An error occurred while updating your {credentialLower}. Please try again.',
+  'changeCredential.unavailable.description': 'Please contact your administrator.',
+
   // Organizations
   'organization.unnamed': 'Organization',
   'organizationList.empty': 'No organizations found.',

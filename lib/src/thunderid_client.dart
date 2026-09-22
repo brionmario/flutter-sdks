@@ -263,6 +263,22 @@ class ThunderIDClient {
     return UserProfile.fromMap(result);
   }
 
+  /// Changes one of the signed-in user's own credentials via
+  /// `POST /users/me/update-credentials`.
+  ///
+  /// The self-service write path does not verify the account's existing value today, so this
+  /// call collects only the new value, matching the Android/iOS/React/Vue SDKs.
+  Future<void> updateUserCredentials({
+    String attribute = 'password',
+    required String newValue,
+  }) async {
+    _requireInitialized();
+    await _channel.invoke<void>('updateUserCredentials', {
+      'attribute': attribute,
+      'newValue': newValue,
+    });
+  }
+
   // ── Flow Meta ─────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getFlowMeta(
