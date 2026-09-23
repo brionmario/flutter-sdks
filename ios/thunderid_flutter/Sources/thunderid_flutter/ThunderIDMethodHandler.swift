@@ -114,6 +114,12 @@ final class ThunderIDMethodHandler {
                 let profile = try await client.updateUserProfile(payload: payload)
                 result(encodeUserProfile(profile))
 
+            case "updateUserCredentials":
+                let attribute = args["attribute"] as? String ?? "password"
+                let newValue = args["newValue"] as? String ?? ""
+                try await client.updateUserCredentials(attribute: attribute, newValue: newValue)
+                result(nil)
+
             case "getFlowMeta":
                 let appId = args["applicationId"] as? String ?? ""
                 let language = args["language"] as? String ?? "en-US"

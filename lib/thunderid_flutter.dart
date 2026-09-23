@@ -26,6 +26,7 @@ export 'src/models/user.dart';
 export 'src/models/user_profile.dart' hide UserProfile;
 export 'src/thunderid_client.dart';
 export 'src/widgets/callback.dart';
+export 'src/widgets/change_credential.dart';
 export 'src/widgets/language_switcher.dart';
 export 'src/widgets/loading.dart';
 export 'src/widgets/sign_in.dart';

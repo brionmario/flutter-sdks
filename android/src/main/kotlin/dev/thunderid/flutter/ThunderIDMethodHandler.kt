@@ -136,6 +136,12 @@ class ThunderIDMethodHandler(private val context: Context) {
                     val payload = args["payload"] as? Map<String, Any?> ?: emptyMap()
                     result.success(encodeUserProfile(client.updateUserProfile(payload.nonNullValues())))
                 }
+                "updateUserCredentials" -> {
+                    val attribute = args["attribute"] as? String ?: "password"
+                    val newValue = args["newValue"] as? String ?: ""
+                    client.updateUserCredentials(attribute, newValue)
+                    result.success(null)
+                }
                 "getFlowMeta" -> {
                     val appId = args["applicationId"] as? String ?: ""
                     val language = args["language"] as? String ?: "en-US"

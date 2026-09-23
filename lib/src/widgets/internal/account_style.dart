@@ -421,10 +421,12 @@ class ThunderAccountEditPage extends StatelessWidget {
       },
       // This page is pushed via a plain PageRouteBuilder (so its transition is a fade, not
       // either platform's native push animation), which unlike MaterialPageRoute does not wrap
-      // its content in a Material ancestor. TextField and InkWell both require one.
-      child: Material(
-        color: colors.pageBackground,
-        child: SafeArea(
+      // its content in a Material ancestor. TextField and InkWell both require one, and Scaffold
+      // (rather than a bare Material) also resizes the body for the keyboard, keeping the fixed
+      // Save/Cancel row above it instead of leaving it obscured once a field is focused.
+      child: Scaffold(
+        backgroundColor: colors.pageBackground,
+        body: SafeArea(
           child: Column(
             children: [
               Expanded(
