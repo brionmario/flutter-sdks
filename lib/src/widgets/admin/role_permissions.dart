@@ -8,6 +8,7 @@ import '../../models/management/role.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
@@ -27,6 +28,9 @@ class BaseRolePermissions extends StatelessWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view, from the granted permissions grouped by resource server, the loading and error state, and a resource server name lookup.
+  final AdminWidgetBuilder<RolePermissionsState>? builder;
+
   const BaseRolePermissions({
     super.key,
     required this.permissions,
@@ -36,12 +40,25 @@ class BaseRolePermissions extends StatelessWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, preferences);
     final granted = permissions.where((entry) => entry.permissions.isNotEmpty).toList();
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        RolePermissionsState(
+          permissions: granted,
+          isLoading: isLoading,
+          error: error,
+          resourceServerNames: resourceServerNames,
+        ),
+      );
+    }
     final List<Widget> content;
     if (isLoading) {
       content = [AdminLoading(ac: ac)];
@@ -83,6 +100,9 @@ class RolePermissions extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view. See [BaseRolePermissions.builder].
+  final AdminWidgetBuilder<RolePermissionsState>? builder;
+
   const RolePermissions({
     super.key,
     required this.roleId,
@@ -90,6 +110,7 @@ class RolePermissions extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -123,6 +144,7 @@ class _RolePermissionsState extends AdminConnectedState<RolePermissions> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

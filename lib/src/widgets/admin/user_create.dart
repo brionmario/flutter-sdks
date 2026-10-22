@@ -11,6 +11,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
@@ -70,6 +71,9 @@ class BaseUserCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form, from the user types, the fields, the type and attribute values with their setters, the submit action and the submission state.
+  final AdminWidgetBuilder<UserCreateFormState>? builder;
+
   const BaseUserCreate({
     super.key,
     required this.userTypes,
@@ -81,6 +85,7 @@ class BaseUserCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -98,6 +103,7 @@ class _BaseUserCreateState extends State<BaseUserCreate> {
       widget.fields.every((field) => !field.required || (_values[field.name]?.trim().isNotEmpty ?? false));
 
   void _submit() {
+    if (!_isComplete || widget.isSubmitting) return;
     widget.onSubmit(
       UserCreateSubmission(
         type: _resolvedType,
@@ -112,6 +118,25 @@ class _BaseUserCreateState extends State<BaseUserCreate> {
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, widget.preferences);
+    final builder = widget.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        UserCreateFormState(
+          userTypes: widget.userTypes,
+          fields: widget.fields,
+          type: _resolvedType,
+          onTypeChanged: (value) => setState(() => _type = value),
+          values: Map.unmodifiable(_values),
+          onValueChanged: (name, value) => setState(() => _values[name] = value),
+          isValid: _isComplete,
+          isSubmitting: widget.isSubmitting,
+          error: widget.error,
+          submit: _submit,
+          onCancel: widget.onCancel,
+        ),
+      );
+    }
     return AdminSection(
       ac: ac,
       block: 'user-create',
@@ -180,6 +205,9 @@ class UserCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form. See [BaseUserCreate.builder].
+  final AdminWidgetBuilder<UserCreateFormState>? builder;
+
   const UserCreate({
     super.key,
     this.ouId,
@@ -189,6 +217,7 @@ class UserCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -232,6 +261,7 @@ class _UserCreateState extends AdminConnectedState<UserCreate> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

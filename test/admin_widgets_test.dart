@@ -284,4 +284,137 @@ void main() {
       expect(find.byKey(const Key('thunderid-action-agent-details-delete')), findsNothing);
     });
   });
+  group('builder (custom UI)', () {
+    testWidgets('a list hands its rows and paging to the builder instead of the table', (tester) async {
+      int? requested;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BaseUserList(
+              users: const [
+                ManagedUser(id: 'u1', ouId: 'ou1', type: 'customer', display: 'Ada'),
+                ManagedUser(id: 'u2', ouId: 'ou1', type: 'customer', display: 'Grace'),
+              ],
+              totalResults: 45,
+              offset: 20,
+              onPageChange: (offset) => requested = offset,
+              builder: (context, state) => Column(
+                children: [
+                  Text('${state.rows.length} of ${state.totalResults} from ${state.offset}'),
+                  TextButton(onPressed: () => state.onPageChange?.call(40), child: const Text('Next')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('2 of 45 from 20'), findsOneWidget);
+      expect(find.byKey(const Key('thunderid-admin-user-list')), findsNothing);
+      await tester.tap(find.text('Next'));
+      expect(requested, 40);
+    });
+
+    testWidgets('a connected list hands the fetched rows to the builder', (tester) async {
+      server.on('GET', '/groups', {
+        'totalResults': 1,
+        'groups': [
+          {'id': 'g1', 'name': 'Admins', 'ouId': 'ou1'},
+        ],
+      });
+      await tester.pumpWidget(
+        _app(
+          server,
+          GroupList(
+            builder: (context, state) => Column(children: [for (final group in state.rows) Text('row ${group.name}')]),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('row Admins'), findsOneWidget);
+    });
+
+    testWidgets('a custom form sets values and submits them', (tester) async {
+      GroupCreateSubmission? submitted;
+      late NamedResourceFormState form;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BaseGroupCreate(
+              onSubmit: (value) => submitted = value,
+              builder: (context, state) {
+                form = state;
+                return Text(state.isValid ? 'valid' : 'invalid');
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('invalid'), findsOneWidget);
+      form.submit();
+      expect(submitted, isNull);
+      form.onNameChanged('  Engineering ');
+      await tester.pump();
+      expect(find.text('valid'), findsOneWidget);
+      form.submit();
+      expect(submitted?.name, 'Engineering');
+      expect(submitted?.description, isNull);
+    });
+
+    testWidgets('custom user details get no delete for read-only users and no hidden attributes', (tester) async {
+      late UserDetailsState details;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BaseUserDetails(
+              user: const ManagedUser(
+                id: 'u1',
+                ouId: 'ou1',
+                type: 'customer',
+                display: 'Ada',
+                isReadOnly: true,
+                attributes: {'username': 'ada', 'password': 'secret'},
+              ),
+              onDelete: () {},
+              builder: (context, state) {
+                details = state;
+                return Text(state.displayName);
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ada'), findsOneWidget);
+      expect(details.attributes.keys, ['username']);
+      expect(details.onDelete, isNull);
+    });
+
+    testWidgets('custom permissions UI gets only granted servers with their names', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BaseRolePermissions(
+              permissions: const [
+                RoleResourcePermissions(resourceServerId: 'rs-1', permissions: ['read']),
+                RoleResourcePermissions(resourceServerId: 'rs-2', permissions: []),
+              ],
+              resourceServerNames: const {'rs-1': 'Orders API'},
+              builder: (context, state) => Column(
+                children: [
+                  for (final entry in state.permissions)
+                    Text('${state.resourceServerName(entry.resourceServerId)}: ${entry.permissions.join(' ')}'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Orders API: read'), findsOneWidget);
+      expect(find.textContaining('rs-2'), findsNothing);
+    });
+  });
 }

@@ -13,6 +13,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
@@ -37,6 +38,9 @@ class BaseGroupMembers extends StatelessWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default table and picker, from the members, the candidates, the loading and error state, and the add and remove callbacks.
+  final AdminWidgetBuilder<GroupMembersState>? builder;
+
   const BaseGroupMembers({
     super.key,
     required this.members,
@@ -49,6 +53,7 @@ class BaseGroupMembers extends StatelessWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -57,6 +62,21 @@ class BaseGroupMembers extends StatelessWidget {
     final candidates = this.candidates;
     final onAdd = this.onAdd;
     final onRemove = this.onRemove;
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        GroupMembersState(
+          members: members,
+          candidates: onAdd == null ? null : candidates,
+          isLoading: isLoading,
+          error: error,
+          isMutating: isMutating,
+          onAdd: candidates == null ? null : onAdd,
+          onRemove: onRemove,
+        ),
+      );
+    }
     String label(GroupMember member) => member.display ?? member.id;
     return AdminSection(
       ac: ac,
@@ -120,6 +140,9 @@ class GroupMembers extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default table and picker. See [BaseGroupMembers.builder].
+  final AdminWidgetBuilder<GroupMembersState>? builder;
+
   const GroupMembers({
     super.key,
     required this.groupId,
@@ -127,6 +150,7 @@ class GroupMembers extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -195,6 +219,7 @@ class _GroupMembersState extends AdminConnectedState<GroupMembers> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

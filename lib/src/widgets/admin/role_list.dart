@@ -9,6 +9,7 @@ import '../../models/management/role.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
@@ -31,6 +32,9 @@ class BaseRoleList extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list, from the roles, the loading and error state, and the paging and selection callbacks.
+  final AdminWidgetBuilder<AdminListState<Role>>? builder;
+
   const BaseRoleList({
     super.key,
     required this.roles,
@@ -46,10 +50,28 @@ class BaseRoleList extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
   Widget build(BuildContext context) {
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        AdminListState(
+          rows: roles,
+          isLoading: isLoading,
+          error: error,
+          limit: limit,
+          offset: offset,
+          totalResults: totalResults ?? roles.length,
+          selectedId: selectedRoleId,
+          onPageChange: onPageChange,
+          onSelect: onSelect,
+        ),
+      );
+    }
     final ac = AdminContext.of(context, preferences);
     return AdminSection(
       ac: ac,
@@ -103,6 +125,9 @@ class RoleList extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list. See [BaseRoleList.builder].
+  final AdminWidgetBuilder<AdminListState<Role>>? builder;
+
   const RoleList({
     super.key,
     this.limit = 20,
@@ -112,6 +137,7 @@ class RoleList extends StatefulWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -161,6 +187,7 @@ class _RoleListState extends AdminConnectedState<RoleList> {
       description: widget.description,
       actions: widget.actions,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

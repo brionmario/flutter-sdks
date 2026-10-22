@@ -9,6 +9,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
@@ -31,6 +32,9 @@ class BaseAgentList extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list, from the agents, the loading and error state, and the paging and selection callbacks.
+  final AdminWidgetBuilder<AdminListState<Agent>>? builder;
+
   const BaseAgentList({
     super.key,
     required this.agents,
@@ -46,10 +50,28 @@ class BaseAgentList extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
   Widget build(BuildContext context) {
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        AdminListState(
+          rows: agents,
+          isLoading: isLoading,
+          error: error,
+          limit: limit,
+          offset: offset,
+          totalResults: totalResults ?? agents.length,
+          selectedId: selectedAgentId,
+          onPageChange: onPageChange,
+          onSelect: onSelect,
+        ),
+      );
+    }
     final ac = AdminContext.of(context, preferences);
     return AdminSection(
       ac: ac,
@@ -104,6 +126,9 @@ class AgentList extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list. See [BaseAgentList.builder].
+  final AdminWidgetBuilder<AdminListState<Agent>>? builder;
+
   const AgentList({
     super.key,
     this.limit = 20,
@@ -113,6 +138,7 @@ class AgentList extends StatefulWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -162,6 +188,7 @@ class _AgentListState extends AdminConnectedState<AgentList> {
       description: widget.description,
       actions: widget.actions,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

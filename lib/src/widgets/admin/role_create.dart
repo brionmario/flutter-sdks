@@ -10,6 +10,7 @@ import '../../models/management/role.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_inputs.dart';
@@ -36,6 +37,9 @@ class BaseRoleCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form, from the name and description with their setters, the submit action and the submission state.
+  final AdminWidgetBuilder<NamedResourceFormState>? builder;
+
   const BaseRoleCreate({
     super.key,
     required this.onSubmit,
@@ -45,6 +49,7 @@ class BaseRoleCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -58,7 +63,35 @@ class _BaseRoleCreateState extends State<BaseRoleCreate> {
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, widget.preferences);
-    final canSubmit = _name.trim().isNotEmpty && !widget.isSubmitting;
+    final isValid = _name.trim().isNotEmpty;
+    final canSubmit = isValid && !widget.isSubmitting;
+    void submit() {
+      if (!canSubmit) return;
+      widget.onSubmit(
+        RoleCreateSubmission(
+          name: _name.trim(),
+          description: _description.trim().isEmpty ? null : _description.trim(),
+        ),
+      );
+    }
+
+    final builder = widget.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        NamedResourceFormState(
+          name: _name,
+          onNameChanged: (value) => setState(() => _name = value),
+          description: _description,
+          onDescriptionChanged: (value) => setState(() => _description = value),
+          isValid: isValid,
+          isSubmitting: widget.isSubmitting,
+          error: widget.error,
+          submit: submit,
+          onCancel: widget.onCancel,
+        ),
+      );
+    }
     return AdminSection(
       ac: ac,
       block: 'role-create',
@@ -96,14 +129,7 @@ class _BaseRoleCreateState extends State<BaseRoleCreate> {
               label: ac.t('admin.roles.create.submit'),
               identifier: 'thunderid-action-role-create-submit',
               isLoading: widget.isSubmitting,
-              onPressed: canSubmit
-                  ? () => widget.onSubmit(
-                        RoleCreateSubmission(
-                          name: _name.trim(),
-                          description: _description.trim().isEmpty ? null : _description.trim(),
-                        ),
-                      )
-                  : null,
+              onPressed: canSubmit ? submit : null,
             ),
           ],
         ),
@@ -122,6 +148,9 @@ class RoleCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form. See [BaseRoleCreate.builder].
+  final AdminWidgetBuilder<NamedResourceFormState>? builder;
+
   const RoleCreate({
     super.key,
     this.ouId,
@@ -130,6 +159,7 @@ class RoleCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -164,6 +194,7 @@ class _RoleCreateState extends AdminConnectedState<RoleCreate> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

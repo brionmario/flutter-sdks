@@ -9,6 +9,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
@@ -35,6 +36,9 @@ class BaseUserList extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list, from the users, the loading and error state, and the paging and selection callbacks.
+  final AdminWidgetBuilder<AdminListState<ManagedUser>>? builder;
+
   const BaseUserList({
     super.key,
     required this.users,
@@ -50,10 +54,28 @@ class BaseUserList extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
   Widget build(BuildContext context) {
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        AdminListState(
+          rows: users,
+          isLoading: isLoading,
+          error: error,
+          limit: limit,
+          offset: offset,
+          totalResults: totalResults ?? users.length,
+          selectedId: selectedUserId,
+          onPageChange: onPageChange,
+          onSelect: onSelect,
+        ),
+      );
+    }
     final ac = AdminContext.of(context, preferences);
     String name(ManagedUser user) =>
         resolveManagedIdentityName(id: user.id, display: user.display, attributes: user.attributes);
@@ -117,6 +139,9 @@ class UserList extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default list. See [BaseUserList.builder].
+  final AdminWidgetBuilder<AdminListState<ManagedUser>>? builder;
+
   const UserList({
     super.key,
     this.filter,
@@ -127,6 +152,7 @@ class UserList extends StatefulWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -176,6 +202,7 @@ class _UserListState extends AdminConnectedState<UserList> {
       description: widget.description,
       actions: widget.actions,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

@@ -38,6 +38,7 @@ export 'src/state/granted_permissions.dart';
 export 'src/state/management_resources.dart';
 export 'src/state/resource_notifiers.dart';
 export 'src/thunderid_client.dart';
+export 'src/widgets/admin/admin_render_state.dart';
 export 'src/widgets/admin/agent_create.dart';
 export 'src/widgets/admin/agent_details.dart';
 export 'src/widgets/admin/agent_list.dart';

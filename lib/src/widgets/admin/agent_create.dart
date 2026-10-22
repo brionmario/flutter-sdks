@@ -11,6 +11,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
@@ -40,6 +41,9 @@ class BaseAgentCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form, from the agent types, the name, type and description with their setters, the submit action and the submission state.
+  final AdminWidgetBuilder<AgentCreateFormState>? builder;
+
   const BaseAgentCreate({
     super.key,
     required this.agentTypes,
@@ -50,6 +54,7 @@ class BaseAgentCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -66,7 +71,39 @@ class _BaseAgentCreateState extends State<BaseAgentCreate> {
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, widget.preferences);
-    final canSubmit = _name.trim().isNotEmpty && _resolvedType.isNotEmpty && !widget.isSubmitting;
+    final isValid = _name.trim().isNotEmpty && _resolvedType.isNotEmpty;
+    final canSubmit = isValid && !widget.isSubmitting;
+    void submit() {
+      if (!canSubmit) return;
+      widget.onSubmit(
+        AgentCreateSubmission(
+          name: _name.trim(),
+          type: _resolvedType,
+          description: _description.trim().isEmpty ? null : _description.trim(),
+        ),
+      );
+    }
+
+    final builder = widget.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        AgentCreateFormState(
+          agentTypes: widget.agentTypes,
+          name: _name,
+          onNameChanged: (value) => setState(() => _name = value),
+          type: _resolvedType,
+          onTypeChanged: (value) => setState(() => _type = value),
+          description: _description,
+          onDescriptionChanged: (value) => setState(() => _description = value),
+          isValid: isValid,
+          isSubmitting: widget.isSubmitting,
+          error: widget.error,
+          submit: submit,
+          onCancel: widget.onCancel,
+        ),
+      );
+    }
     return AdminSection(
       ac: ac,
       block: 'agent-create',
@@ -112,15 +149,7 @@ class _BaseAgentCreateState extends State<BaseAgentCreate> {
               label: ac.t('admin.agents.create.submit'),
               identifier: 'thunderid-action-agent-create-submit',
               isLoading: widget.isSubmitting,
-              onPressed: canSubmit
-                  ? () => widget.onSubmit(
-                        AgentCreateSubmission(
-                          name: _name.trim(),
-                          type: _resolvedType,
-                          description: _description.trim().isEmpty ? null : _description.trim(),
-                        ),
-                      )
-                  : null,
+              onPressed: canSubmit ? submit : null,
             ),
           ],
         ),
@@ -142,6 +171,9 @@ class AgentCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form. See [BaseAgentCreate.builder].
+  final AdminWidgetBuilder<AgentCreateFormState>? builder;
+
   const AgentCreate({
     super.key,
     this.ouId,
@@ -151,6 +183,7 @@ class AgentCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -199,6 +232,7 @@ class _AgentCreateState extends AdminConnectedState<AgentCreate> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

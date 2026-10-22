@@ -13,6 +13,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_inputs.dart';
@@ -37,6 +38,9 @@ class BaseAgentDetails extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view, from the agent, its groups and roles, the loading and error state, and the delete callback.
+  final AdminWidgetBuilder<AgentDetailsState>? builder;
+
   const BaseAgentDetails({
     super.key,
     this.agent,
@@ -48,12 +52,28 @@ class BaseAgentDetails extends StatelessWidget {
     this.isDeleting = false,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, preferences);
     final agent = this.agent;
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        AgentDetailsState(
+          agent: agent,
+          groups: groups,
+          roles: roles,
+          isLoading: isLoading,
+          error: error,
+          isDeleting: isDeleting,
+          onDelete: agent != null && !agent.isReadOnly ? onDelete : null,
+        ),
+      );
+    }
     if (agent == null) {
       return AdminSection(
         ac: ac,
@@ -152,6 +172,9 @@ class AgentDetails extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view. See [BaseAgentDetails.builder].
+  final AdminWidgetBuilder<AgentDetailsState>? builder;
+
   const AgentDetails({
     super.key,
     required this.agentId,
@@ -159,6 +182,7 @@ class AgentDetails extends StatefulWidget {
     this.onDeleted,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -202,6 +226,7 @@ class _AgentDetailsState extends AdminConnectedState<AgentDetails> {
       onDelete: widget.deletable && delete != null ? () => unawaited(delete.mutate(widget.agentId)) : null,
       actions: widget.actions,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

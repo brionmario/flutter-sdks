@@ -10,6 +10,7 @@ import '../../models/management/group.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_inputs.dart';
@@ -36,6 +37,9 @@ class BaseGroupCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form, from the name and description with their setters, the submit action and the submission state.
+  final AdminWidgetBuilder<NamedResourceFormState>? builder;
+
   const BaseGroupCreate({
     super.key,
     required this.onSubmit,
@@ -45,6 +49,7 @@ class BaseGroupCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -58,7 +63,35 @@ class _BaseGroupCreateState extends State<BaseGroupCreate> {
   @override
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, widget.preferences);
-    final canSubmit = _name.trim().isNotEmpty && !widget.isSubmitting;
+    final isValid = _name.trim().isNotEmpty;
+    final canSubmit = isValid && !widget.isSubmitting;
+    void submit() {
+      if (!canSubmit) return;
+      widget.onSubmit(
+        GroupCreateSubmission(
+          name: _name.trim(),
+          description: _description.trim().isEmpty ? null : _description.trim(),
+        ),
+      );
+    }
+
+    final builder = widget.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        NamedResourceFormState(
+          name: _name,
+          onNameChanged: (value) => setState(() => _name = value),
+          description: _description,
+          onDescriptionChanged: (value) => setState(() => _description = value),
+          isValid: isValid,
+          isSubmitting: widget.isSubmitting,
+          error: widget.error,
+          submit: submit,
+          onCancel: widget.onCancel,
+        ),
+      );
+    }
     return AdminSection(
       ac: ac,
       block: 'group-create',
@@ -96,14 +129,7 @@ class _BaseGroupCreateState extends State<BaseGroupCreate> {
               label: ac.t('admin.groups.create.submit'),
               identifier: 'thunderid-action-group-create-submit',
               isLoading: widget.isSubmitting,
-              onPressed: canSubmit
-                  ? () => widget.onSubmit(
-                        GroupCreateSubmission(
-                          name: _name.trim(),
-                          description: _description.trim().isEmpty ? null : _description.trim(),
-                        ),
-                      )
-                  : null,
+              onPressed: canSubmit ? submit : null,
             ),
           ],
         ),
@@ -122,6 +148,9 @@ class GroupCreate extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default form. See [BaseGroupCreate.builder].
+  final AdminWidgetBuilder<NamedResourceFormState>? builder;
+
   const GroupCreate({
     super.key,
     this.ouId,
@@ -130,6 +159,7 @@ class GroupCreate extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -164,6 +194,7 @@ class _GroupCreateState extends AdminConnectedState<GroupCreate> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

@@ -14,6 +14,7 @@ import '../../models/management/role.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
@@ -38,6 +39,9 @@ class BaseRoleAssignments extends StatelessWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default table and picker, from the assignments, the candidates, the loading and error state, and the assign and unassign callbacks.
+  final AdminWidgetBuilder<RoleAssignmentsState>? builder;
+
   const BaseRoleAssignments({
     super.key,
     required this.assignments,
@@ -50,6 +54,7 @@ class BaseRoleAssignments extends StatelessWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -58,6 +63,21 @@ class BaseRoleAssignments extends StatelessWidget {
     final candidates = this.candidates;
     final onAssign = this.onAssign;
     final onUnassign = this.onUnassign;
+    final builder = this.builder;
+    if (builder != null) {
+      return builder(
+        context,
+        RoleAssignmentsState(
+          assignments: assignments,
+          candidates: onAssign == null ? null : candidates,
+          isLoading: isLoading,
+          error: error,
+          isMutating: isMutating,
+          onAssign: candidates == null ? null : onAssign,
+          onUnassign: onUnassign,
+        ),
+      );
+    }
     String label(RoleAssignment assignment) => assignment.display ?? assignment.id;
     return AdminSection(
       ac: ac,
@@ -129,6 +149,9 @@ class RoleAssignments extends StatefulWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default table and picker. See [BaseRoleAssignments.builder].
+  final AdminWidgetBuilder<RoleAssignmentsState>? builder;
+
   const RoleAssignments({
     super.key,
     required this.roleId,
@@ -136,6 +159,7 @@ class RoleAssignments extends StatefulWidget {
     this.title,
     this.description,
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -216,6 +240,7 @@ class _RoleAssignmentsState extends AdminConnectedState<RoleAssignments> {
       title: widget.title,
       description: widget.description,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }

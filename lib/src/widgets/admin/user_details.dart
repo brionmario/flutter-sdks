@@ -13,6 +13,7 @@ import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
+import 'admin_render_state.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_inputs.dart';
@@ -47,6 +48,9 @@ class BaseUserDetails extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view, from the user, their visible attributes and groups, the loading and error state, and the delete and update callbacks.
+  final AdminWidgetBuilder<UserDetailsState>? builder;
+
   const BaseUserDetails({
     super.key,
     this.user,
@@ -60,6 +64,7 @@ class BaseUserDetails extends StatefulWidget {
     this.isUpdating = false,
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -73,6 +78,30 @@ class _BaseUserDetailsState extends State<BaseUserDetails> {
   Widget build(BuildContext context) {
     final ac = AdminContext.of(context, widget.preferences);
     final user = widget.user;
+    final builder = widget.builder;
+    if (builder != null) {
+      final isWritable = user != null && !user.isReadOnly;
+      return builder(
+        context,
+        UserDetailsState(
+          user: user,
+          displayName: user == null
+              ? ''
+              : resolveManagedIdentityName(id: user.id, display: user.display, attributes: user.attributes),
+          attributes: {
+            for (final entry in user?.attributes.entries ?? const <MapEntry<String, dynamic>>[])
+              if (!widget.hiddenAttributes.contains(entry.key)) entry.key: entry.value,
+          },
+          groups: widget.groups,
+          isLoading: widget.isLoading,
+          error: widget.error,
+          isDeleting: widget.isDeleting,
+          isUpdating: widget.isUpdating,
+          onDelete: isWritable ? widget.onDelete : null,
+          onUpdate: isWritable ? widget.onUpdate : null,
+        ),
+      );
+    }
     if (user == null) {
       return AdminSection(
         ac: ac,
@@ -211,6 +240,9 @@ class UserDetails extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Builds custom UI in place of the default view. See [BaseUserDetails.builder].
+  final AdminWidgetBuilder<UserDetailsState>? builder;
+
   const UserDetails({
     super.key,
     required this.userId,
@@ -220,6 +252,7 @@ class UserDetails extends StatefulWidget {
     this.hiddenAttributes = const {'password'},
     this.actions = const [],
     this.preferences,
+    this.builder,
   });
 
   @override
@@ -277,6 +310,7 @@ class _UserDetailsState extends AdminConnectedState<UserDetails> {
       hiddenAttributes: widget.hiddenAttributes,
       actions: widget.actions,
       preferences: widget.preferences,
+      builder: widget.builder,
     );
   }
 }
