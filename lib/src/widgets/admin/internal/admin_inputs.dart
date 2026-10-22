@@ -234,7 +234,8 @@ class AdminDropdown extends StatelessWidget {
               isExpanded: true,
               value: selected,
               dropdownColor: colors.background,
-              style: TextStyle(color: colors.text, fontSize: 15),
+              // Inherit the surrounding font: DropdownButton uses this style as-is for the selected value.
+              style: DefaultTextStyle.of(context).style.copyWith(color: colors.text, fontSize: 15),
               hint: hint == null ? null : Text(hint, style: TextStyle(color: colors.textSecondary)),
               items: [
                 for (final option in options)
