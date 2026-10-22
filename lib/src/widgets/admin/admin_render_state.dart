@@ -13,6 +13,20 @@ import 'user_create.dart';
 /// Builds custom UI for an admin widget from the state it hands over, in place of the default UI.
 typedef AdminWidgetBuilder<T> = Widget Function(BuildContext context, T state);
 
+/// A search an admin list applies on the server: the attribute to match and the value it must equal.
+class AdminSearch {
+  final String attribute;
+  final String value;
+
+  const AdminSearch({required this.attribute, required this.value});
+
+  @override
+  bool operator ==(Object other) => other is AdminSearch && other.attribute == attribute && other.value == value;
+
+  @override
+  int get hashCode => Object.hash(attribute, value);
+}
+
 /// What an admin list hands its `builder`, so the rows can be shown with any UI.
 class AdminListState<T> {
   final List<T> rows;
@@ -33,6 +47,15 @@ class AdminListState<T> {
   /// Chooses a row. `null` when rows are not selectable.
   final ValueChanged<T>? onSelect;
 
+  /// The search currently applied, if any.
+  final AdminSearch? search;
+
+  /// The attributes that can be searched, with translated labels.
+  final List<AdminSelectOption> searchAttributes;
+
+  /// Applies a search on the server, or clears it with `null`. `null` when the list cannot be searched.
+  final ValueChanged<AdminSearch?>? onSearch;
+
   const AdminListState({
     required this.rows,
     required this.isLoading,
@@ -43,6 +66,9 @@ class AdminListState<T> {
     required this.selectedId,
     required this.onPageChange,
     required this.onSelect,
+    this.search,
+    this.searchAttributes = const [],
+    this.onSearch,
   });
 }
 
@@ -250,6 +276,13 @@ class RoleAssignmentsState {
   /// Removes an assignment. `null` when unassigning is not allowed.
   final ValueChanged<RoleAssignment>? onUnassign;
 
+  /// The assignee type the list is narrowed to, or `null` for every type.
+  final RoleAssigneeType? typeFilter;
+
+  /// Narrows the list to one assignee type on the server, or back to every type with `null`.
+  /// `null` when the list cannot be filtered.
+  final ValueChanged<RoleAssigneeType?>? onTypeFilterChange;
+
   const RoleAssignmentsState({
     required this.assignments,
     required this.candidates,
@@ -258,6 +291,8 @@ class RoleAssignmentsState {
     required this.isMutating,
     required this.onAssign,
     required this.onUnassign,
+    this.typeFilter,
+    this.onTypeFilterChange,
   });
 }
 

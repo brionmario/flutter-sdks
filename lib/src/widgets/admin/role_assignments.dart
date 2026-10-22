@@ -39,6 +39,13 @@ class BaseRoleAssignments extends StatelessWidget {
   final String? description;
   final ThunderIDPreferences? preferences;
 
+  /// The assignee type the list is narrowed to, or `null` for every type.
+  final RoleAssigneeType? typeFilter;
+
+  /// Narrows the list to one assignee type on the server, or back to every type with `null`. The
+  /// type filter shows only when set.
+  final ValueChanged<RoleAssigneeType?>? onTypeFilterChange;
+
   /// Builds custom UI in place of the default table and picker, from the assignments, the candidates, the loading and error state, and the assign and unassign callbacks.
   final AdminWidgetBuilder<RoleAssignmentsState>? builder;
 
@@ -54,6 +61,8 @@ class BaseRoleAssignments extends StatelessWidget {
     this.title,
     this.description,
     this.preferences,
+    this.typeFilter,
+    this.onTypeFilterChange,
     this.builder,
   });
 
@@ -75,6 +84,8 @@ class BaseRoleAssignments extends StatelessWidget {
           isMutating: isMutating,
           onAssign: candidates == null ? null : onAssign,
           onUnassign: onUnassign,
+          typeFilter: typeFilter,
+          onTypeFilterChange: onTypeFilterChange,
         ),
       );
     }
@@ -86,6 +97,24 @@ class BaseRoleAssignments extends StatelessWidget {
       description: description,
       nested: true,
       children: [
+        if (onTypeFilterChange != null)
+          AdminDropdown(
+            ac: ac,
+            label: ac.t('admin.common.filters.type'),
+            identifier: 'thunderid-field-role-assignments-type-filter',
+            value: typeFilter?.value ?? '',
+            options: [
+              AdminSelectOption(value: '', label: ac.t('admin.common.filters.all_types')),
+              for (final type in const [
+                RoleAssigneeType.user,
+                RoleAssigneeType.group,
+                RoleAssigneeType.agent,
+                RoleAssigneeType.app,
+              ])
+                AdminSelectOption(value: type.value, label: ac.t('admin.common.identity_types.${type.value}')),
+            ],
+            onChanged: (value) => onTypeFilterChange!(RoleAssigneeType.fromValue(value)),
+          ),
         if (onAssign != null && candidates != null)
           AdminIdentityPicker<RoleAssigneeType>(
             ac: ac,
@@ -145,6 +174,9 @@ class BaseRoleAssignments extends StatelessWidget {
 class RoleAssignments extends StatefulWidget {
   final String roleId;
   final bool editable;
+
+  /// Whether to show the assignee type filter, which narrows the list on the server.
+  final bool filterable;
   final String? title;
   final String? description;
   final ThunderIDPreferences? preferences;
@@ -156,6 +188,7 @@ class RoleAssignments extends StatefulWidget {
     super.key,
     required this.roleId,
     this.editable = false,
+    this.filterable = true,
     this.title,
     this.description,
     this.preferences,
@@ -173,10 +206,11 @@ class _RoleAssignmentsState extends AdminConnectedState<RoleAssignments> {
   ResourceQuery<ManagementPage<Agent>>? _agents;
   ResourceMutation<RoleAssignmentsVariables, void>? _assign;
   ResourceMutation<RoleAssignmentsVariables, void>? _unassign;
+  RoleAssigneeType? _typeFilter;
 
   @override
   void bind(ManagementResources resources) {
-    _assignments = own(resources.roleAssignmentsQuery(widget.roleId, limit: 100));
+    _assignments = own(resources.roleAssignmentsQuery(widget.roleId, type: _typeFilter, limit: 100));
     _users = own(resources.usersQuery(limit: 100, enabled: widget.editable));
     _groups = own(resources.groupsQuery(limit: 100, enabled: widget.editable));
     _agents = own(resources.agentsQuery(limit: 100, enabled: widget.editable));
@@ -239,6 +273,13 @@ class _RoleAssignmentsState extends AdminConnectedState<RoleAssignments> {
           : null,
       title: widget.title,
       description: widget.description,
+      typeFilter: _typeFilter,
+      onTypeFilterChange: widget.filterable
+          ? (type) {
+              setState(() => _typeFilter = type);
+              rebind();
+            }
+          : null,
       preferences: widget.preferences,
       builder: widget.builder,
     );

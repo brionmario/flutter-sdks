@@ -508,7 +508,10 @@ class ThunderIDManagementClient {
 
   // ── Agents ──────────────────────────────────────────────────────────────
 
+  /// [filter] narrows the page on a custom agent attribute, such as `name eq "Calendar Agent"`;
+  /// [ManagementFilter.equality] builds one.
   Future<ManagementPage<Agent>> getAgents({
+    String? filter,
     int? limit,
     int? offset,
     String? url,
@@ -520,7 +523,7 @@ class ThunderIDManagementClient {
           failureMessage: 'Failed to fetch agents',
           endpointKey: ManagementEndpointKeys.agents,
           collection: 'agents',
-          query: {'include': 'display', 'limit': limit, 'offset': offset},
+          query: {'filter': filter, 'include': 'display', 'limit': limit, 'offset': offset},
           url: url,
           fetcher: fetcher,
         ),

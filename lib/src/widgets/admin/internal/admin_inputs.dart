@@ -103,6 +103,12 @@ class AdminTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final bool enabled;
 
+  /// Called with the text when the keyboard's action button is pressed.
+  final ValueChanged<String>? onSubmitted;
+
+  /// Shown inside the field while it is empty.
+  final String? hint;
+
   const AdminTextField({
     super.key,
     required this.ac,
@@ -114,6 +120,8 @@ class AdminTextField extends StatefulWidget {
     this.required = false,
     this.keyboardType,
     this.enabled = true,
+    this.onSubmitted,
+    this.hint,
   });
 
   @override
@@ -150,9 +158,12 @@ class _AdminTextFieldState extends State<AdminTextField> {
           autocorrect: false,
           enableSuggestions: !widget.obscureText,
           onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          textInputAction: widget.onSubmitted == null ? null : TextInputAction.search,
           style: TextStyle(color: colors.text, fontSize: 15),
           decoration: InputDecoration(
             labelText: widget.required ? '${widget.label} *' : widget.label,
+            hintText: widget.hint,
             labelStyle: TextStyle(color: colors.textSecondary),
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

@@ -4,15 +4,18 @@
 import 'package:flutter/widgets.dart';
 
 import '../../management/management_display.dart';
+import '../../management/management_filter.dart';
 import '../../models/management/managed_user.dart';
 import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
 import 'admin_render_state.dart';
+import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
+import 'internal/admin_search_bar.dart';
 
 /// Presentational user list: renders [users] and reports selection and paging. Supply the
 /// data yourself, or use [UserList] to have it fetched.
@@ -36,6 +39,16 @@ class BaseUserList extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// The search currently applied, if any. While set, an empty page says nothing matched.
+  final AdminSearch? search;
+
+  /// The attributes that can be searched, with translated labels.
+  final List<AdminSelectOption> searchAttributes;
+
+  /// Applies a search on the server, or clears it with `null`. The search form shows only when this
+  /// and [searchAttributes] are set.
+  final ValueChanged<AdminSearch?>? onSearch;
+
   /// Builds custom UI in place of the default list, from the users, the loading and error state, and the paging and selection callbacks.
   final AdminWidgetBuilder<AdminListState<ManagedUser>>? builder;
 
@@ -54,6 +67,9 @@ class BaseUserList extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.search,
+    this.searchAttributes = const [],
+    this.onSearch,
     this.builder,
   });
 
@@ -73,6 +89,9 @@ class BaseUserList extends StatelessWidget {
           selectedId: selectedUserId,
           onPageChange: onPageChange,
           onSelect: onSelect,
+          search: search,
+          searchAttributes: searchAttributes,
+          onSearch: onSearch,
         ),
       );
     }
@@ -86,6 +105,14 @@ class BaseUserList extends StatelessWidget {
       description: description,
       actions: actions,
       children: [
+        if (onSearch != null && searchAttributes.isNotEmpty)
+          AdminSearchBar(
+            ac: ac,
+            block: 'user-list',
+            attributes: searchAttributes,
+            search: search,
+            onSearch: onSearch!,
+          ),
         AdminTable<ManagedUser>(
           ac: ac,
           block: 'user-list',
@@ -93,7 +120,9 @@ class BaseUserList extends StatelessWidget {
           rowId: (user) => user.id,
           isLoading: isLoading,
           error: error,
-          emptyText: ac.t('admin.users.list.empty'),
+          emptyText: search == null
+              ? ac.t('admin.users.list.empty')
+              : ac.t('admin.common.search.no_results', {'value': search!.value}),
           onRowTap: onSelect,
           selectedRowId: selectedUserId,
           paging: onPageChange == null
@@ -139,6 +168,12 @@ class UserList extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Whether to show a search form. The server matches the whole value of the chosen attribute.
+  final bool searchable;
+
+  /// The attributes to offer in the search form. Defaults to the list's own.
+  final List<AdminSelectOption>? searchAttributes;
+
   /// Builds custom UI in place of the default list. See [BaseUserList.builder].
   final AdminWidgetBuilder<AdminListState<ManagedUser>>? builder;
 
@@ -152,6 +187,8 @@ class UserList extends StatefulWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.searchable = true,
+    this.searchAttributes,
     this.builder,
   });
 
@@ -161,11 +198,12 @@ class UserList extends StatefulWidget {
 
 class _UserListState extends AdminConnectedState<UserList> {
   int _offset = 0;
+  AdminSearch? _search;
   ResourceQuery<ManagementPage<ManagedUser>>? _users;
 
   @override
   void bind(ManagementResources resources) {
-    _users = own(resources.usersQuery(filter: widget.filter, limit: widget.limit, offset: _offset));
+    _users = own(resources.usersQuery(filter: widget.filter ?? _searchFilter, limit: widget.limit, offset: _offset));
   }
 
   @override
@@ -175,6 +213,19 @@ class _UserListState extends AdminConnectedState<UserList> {
       _offset = 0;
       rebind();
     }
+  }
+
+  String? get _searchFilter {
+    final search = _search;
+    return search == null ? null : ManagementFilter.equality(search.attribute, search.value);
+  }
+
+  void _applySearch(AdminSearch? search) {
+    setState(() {
+      _search = search;
+      _offset = 0;
+    });
+    rebind();
   }
 
   void _changePage(int offset) {
@@ -201,6 +252,13 @@ class _UserListState extends AdminConnectedState<UserList> {
       title: widget.title,
       description: widget.description,
       actions: widget.actions,
+      search: _search,
+      searchAttributes: widget.searchAttributes ??
+          [
+            AdminSelectOption(value: 'username', label: ac.t('admin.users.list.search.username')),
+            AdminSelectOption(value: 'email', label: ac.t('admin.users.list.search.email')),
+          ],
+      onSearch: widget.searchable && widget.filter == null ? _applySearch : null,
       preferences: widget.preferences,
       builder: widget.builder,
     );

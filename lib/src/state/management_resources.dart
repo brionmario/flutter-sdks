@@ -391,14 +391,15 @@ class ManagementResources {
   // ── Agents ──────────────────────────────────────────────────────────────
 
   ResourceQuery<ManagementPage<Agent>> agentsQuery({
+    String? filter,
     int? limit,
     int? offset,
     bool enabled = true,
     ManagementFetcher? fetcher,
   }) =>
       _query(
-        [ManagementQueryKeys.agents, {'limit': limit, 'offset': offset}],
-        () => client.getAgents(limit: limit, offset: offset, fetcher: fetcher),
+        [ManagementQueryKeys.agents, {'filter': filter, 'limit': limit, 'offset': offset}],
+        () => client.getAgents(filter: filter, limit: limit, offset: offset, fetcher: fetcher),
         enabled,
       );
 

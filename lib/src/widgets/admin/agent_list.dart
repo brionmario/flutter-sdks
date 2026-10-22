@@ -4,15 +4,18 @@
 import 'package:flutter/widgets.dart';
 
 import '../../management/management_display.dart';
+import '../../management/management_filter.dart';
 import '../../models/management/agent.dart';
 import '../../models/management/management_page.dart';
 import '../../models/preferences.dart';
 import '../../state/management_resources.dart';
 import '../../state/resource_notifiers.dart';
 import 'admin_render_state.dart';
+import 'identity_candidate.dart';
 import 'internal/admin_connected.dart';
 import 'internal/admin_context.dart';
 import 'internal/admin_parts.dart';
+import 'internal/admin_search_bar.dart';
 
 /// Presentational agent list: renders [agents] and reports selection and paging.
 class BaseAgentList extends StatelessWidget {
@@ -32,6 +35,16 @@ class BaseAgentList extends StatelessWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// The search currently applied, if any. While set, an empty page says nothing matched.
+  final AdminSearch? search;
+
+  /// The attributes that can be searched, with translated labels.
+  final List<AdminSelectOption> searchAttributes;
+
+  /// Applies a search on the server, or clears it with `null`. The search form shows only when this
+  /// and [searchAttributes] are set.
+  final ValueChanged<AdminSearch?>? onSearch;
+
   /// Builds custom UI in place of the default list, from the agents, the loading and error state, and the paging and selection callbacks.
   final AdminWidgetBuilder<AdminListState<Agent>>? builder;
 
@@ -50,6 +63,9 @@ class BaseAgentList extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.search,
+    this.searchAttributes = const [],
+    this.onSearch,
     this.builder,
   });
 
@@ -69,6 +85,9 @@ class BaseAgentList extends StatelessWidget {
           selectedId: selectedAgentId,
           onPageChange: onPageChange,
           onSelect: onSelect,
+          search: search,
+          searchAttributes: searchAttributes,
+          onSearch: onSearch,
         ),
       );
     }
@@ -80,6 +99,14 @@ class BaseAgentList extends StatelessWidget {
       description: description,
       actions: actions,
       children: [
+        if (onSearch != null && searchAttributes.isNotEmpty)
+          AdminSearchBar(
+            ac: ac,
+            block: 'agent-list',
+            attributes: searchAttributes,
+            search: search,
+            onSearch: onSearch!,
+          ),
         AdminTable<Agent>(
           ac: ac,
           block: 'agent-list',
@@ -87,7 +114,9 @@ class BaseAgentList extends StatelessWidget {
           rowId: (agent) => agent.id,
           isLoading: isLoading,
           error: error,
-          emptyText: ac.t('admin.agents.list.empty'),
+          emptyText: search == null
+              ? ac.t('admin.agents.list.empty')
+              : ac.t('admin.common.search.no_results', {'value': search!.value}),
           onRowTap: onSelect,
           selectedRowId: selectedAgentId,
           paging: onPageChange == null
@@ -126,6 +155,12 @@ class AgentList extends StatefulWidget {
   final List<Widget> actions;
   final ThunderIDPreferences? preferences;
 
+  /// Whether to show a search form. The server matches the whole value of the chosen attribute.
+  final bool searchable;
+
+  /// The attributes to offer in the search form. Defaults to the list's own.
+  final List<AdminSelectOption>? searchAttributes;
+
   /// Builds custom UI in place of the default list. See [BaseAgentList.builder].
   final AdminWidgetBuilder<AdminListState<Agent>>? builder;
 
@@ -138,6 +173,8 @@ class AgentList extends StatefulWidget {
     this.description,
     this.actions = const [],
     this.preferences,
+    this.searchable = true,
+    this.searchAttributes,
     this.builder,
   });
 
@@ -147,11 +184,12 @@ class AgentList extends StatefulWidget {
 
 class _AgentListState extends AdminConnectedState<AgentList> {
   int _offset = 0;
+  AdminSearch? _search;
   ResourceQuery<ManagementPage<Agent>>? _agents;
 
   @override
   void bind(ManagementResources resources) {
-    _agents = own(resources.agentsQuery(limit: widget.limit, offset: _offset));
+    _agents = own(resources.agentsQuery(filter: _searchFilter, limit: widget.limit, offset: _offset));
   }
 
   @override
@@ -161,6 +199,19 @@ class _AgentListState extends AdminConnectedState<AgentList> {
       _offset = 0;
       rebind();
     }
+  }
+
+  String? get _searchFilter {
+    final search = _search;
+    return search == null ? null : ManagementFilter.equality(search.attribute, search.value);
+  }
+
+  void _applySearch(AdminSearch? search) {
+    setState(() {
+      _search = search;
+      _offset = 0;
+    });
+    rebind();
   }
 
   void _changePage(int offset) {
@@ -187,6 +238,10 @@ class _AgentListState extends AdminConnectedState<AgentList> {
       title: widget.title,
       description: widget.description,
       actions: widget.actions,
+      search: _search,
+      searchAttributes: widget.searchAttributes ??
+          [AdminSelectOption(value: 'name', label: ac.t('admin.agents.list.search.name'))],
+      onSearch: widget.searchable ? _applySearch : null,
       preferences: widget.preferences,
       builder: widget.builder,
     );

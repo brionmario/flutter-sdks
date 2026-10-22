@@ -417,4 +417,67 @@ void main() {
       expect(find.textContaining('rs-2'), findsNothing);
     });
   });
+
+  group('search and filters', () {
+    test('ManagementFilter.equality trims the value and rejects invalid input', () {
+      expect(ManagementFilter.equality('username', '  ada '), 'username eq "ada"');
+      expect(ManagementFilter.equality('name', 'Say "hi"'), 'name eq "Say hi"');
+      expect(ManagementFilter.equality('username', '   '), isNull);
+      expect(ManagementFilter.equality('user name', 'ada'), isNull);
+    });
+
+    testWidgets('UserList searches on the server by the chosen attribute', (tester) async {
+      server.on('GET', '/users', {'totalResults': 0, 'users': []});
+      await tester.pumpWidget(_app(server, const UserList()));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('thunderid-field-user-list-search')), ' ada ');
+      await tester.tap(find.byKey(const Key('thunderid-action-user-list-search')));
+      await tester.pumpAndSettle();
+
+      expect(server.where('GET', '/users').last.url.queryParameters['filter'], 'username eq "ada"');
+      expect(find.text('No matches for "ada". Search matches the whole value.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('thunderid-action-user-list-search-clear')));
+      await tester.pumpAndSettle();
+      expect(server.where('GET', '/users').last.url.queryParameters.containsKey('filter'), isFalse);
+    });
+
+    testWidgets('AgentList searches by name', (tester) async {
+      server.on('GET', '/agents', {'totalResults': 0, 'agents': []});
+      await tester.pumpWidget(_app(server, const AgentList()));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('thunderid-field-agent-list-search')), 'Concierge');
+      await tester.tap(find.byKey(const Key('thunderid-action-agent-list-search')));
+      await tester.pumpAndSettle();
+
+      expect(server.where('GET', '/agents').last.url.queryParameters['filter'], 'name eq "Concierge"');
+    });
+
+    testWidgets('RoleAssignments hands the type filter to a builder and requests by type', (tester) async {
+      server.on('GET', '/roles/r1/assignments', {'totalResults': 0, 'assignments': []});
+      late RoleAssignmentsState state;
+      await tester.pumpWidget(
+        _app(
+          server,
+          RoleAssignments(
+            roleId: 'r1',
+            builder: (context, assignments) {
+              state = assignments;
+              return Text('type ${assignments.typeFilter?.value ?? 'all'}');
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('type all'), findsOneWidget);
+
+      state.onTypeFilterChange!(RoleAssigneeType.group);
+      await tester.pumpAndSettle();
+
+      expect(find.text('type group'), findsOneWidget);
+      expect(server.where('GET', '/roles/r1/assignments').last.url.queryParameters['type'], 'group');
+    });
+  });
 }

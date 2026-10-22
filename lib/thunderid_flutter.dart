@@ -15,6 +15,7 @@ export 'src/logo/curated_logo_icons.dart';
 export 'src/logo/logo_spec.dart';
 export 'src/logo/thunderid_logo.dart';
 export 'src/management/management_display.dart';
+export 'src/management/management_filter.dart';
 export 'src/management/management_transport.dart';
 export 'src/management/permissions.dart';
 export 'src/management/thunderid_management_client.dart';
