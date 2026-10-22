@@ -92,4 +92,50 @@ void main() {
       });
     }
   }
+
+  final custom = componentDefs.where((def) => def.category == 'Custom rendering').toList();
+
+  for (final def in custom) {
+    for (final story in def.stories) {
+      testWidgets('${def.name} / ${story.name} renders through the builder', (tester) async {
+        final actions = <String>[];
+        final values = {...def.defaults, ...story.preset};
+        final storyContext = StoryContext(story: story.id, values: values, emit: actions.add);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ThunderIDProvider(
+              config: const ThunderIDConfig(
+                baseUrl: 'https://localhost:8090',
+                clientId: 'playground',
+                http: ThunderIDHttpConfig(fetcher: _emptyPages),
+              ),
+              child: Scaffold(
+                body: SingleChildScrollView(child: Builder(builder: (context) => def.build(context, storyContext))),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        if (def.id == 'customUserList' && story.id == 'base') {
+          expect(find.text('Ada Lovelace'), findsOneWidget);
+          await tester.tap(find.text('Next'));
+          await tester.pumpAndSettle();
+          expect(find.text('Alan Turing'), findsOneWidget);
+          expect(actions, contains('onPageChange 2'));
+        }
+        if (def.id == 'customGroupCreate' && story.id == 'base') {
+          await tester.enterText(find.byKey(const Key('playground-custom-group-name')), 'Engineering');
+          await tester.pump();
+          await tester.tap(find.text('Create group'));
+          expect(actions, contains('onSubmit Engineering'));
+        }
+        if (def.id == 'customUserDetails' && story.id == 'base') {
+          expect(find.text('username: ada'), findsOneWidget);
+          expect(find.textContaining('password'), findsNothing);
+        }
+      });
+    }
+  }
 }

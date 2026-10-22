@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:thunderid_flutter/thunderid_flutter.dart';
 
 import 'admin_stories.dart';
+import 'custom_render_stories.dart';
 import 'theme.dart';
 
 enum ControlKind { text, toggle, choice }
@@ -357,6 +358,7 @@ final List<ComponentDef> componentDefs = [
     },
   ),
   ...adminComponentDefs,
+  ...customRenderComponentDefs,
 ];
 
 List<String> _locales(StoryContext s) =>

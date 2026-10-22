@@ -46,6 +46,14 @@ use the row you last selected in the matching Connected list story. Create stori
 `ouId` control, which defaults to `THUNDERID_OU_ID` and then to the signed-in user's `ouId`
 claim.
 
+### Custom rendering
+
+Every admin widget, `Base*` and connected, takes an optional `builder`, the same pattern as `BaseSignIn`, and renders
+it in place of its own UI. The builder gets the widget's state: `AdminListState` (rows, paging and selection),
+`NamedResourceFormState` and the other form states (values, setters and `submit`), or the details states (the record
+and its actions). The **Custom rendering** stories draw `UserList` as a Material `DataTable` with a pager,
+`GroupCreate` as Material text fields and `UserDetails` as a Material card.
+
 ### Granted permissions
 
 The Session tab's **Access** segment lists the permissions the access token carries, read by
