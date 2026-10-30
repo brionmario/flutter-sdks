@@ -1,3 +1,8 @@
+## 1.5.0
+
+-  List role assignment candidates from an organization unit
+- Complete the management operations and add application components
+
 ## 1.4.0
 
 - Add management operations for agents, groups, roles and users
